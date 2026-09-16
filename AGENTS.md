@@ -34,7 +34,7 @@ ephemeris/
 │       ├── components/
 │       │   ├── ui/          # shadcn/ui primitives — vendored, not linted
 │       │   ├── layouts/     # app-layout: the sidebar + header chrome
-│       │   ├── domain/      # recent-days, theme-select
+│       │   ├── domain/      # recent-days, mood-scale, theme-select
 │       │   └── *.tsx        # cubeui shells (PageHeader, CardLayout, QueryState, …)
 │       ├── routes/          # login, verify, journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
@@ -136,11 +136,26 @@ constraint `ck_entries_mood_range` in `db/src/models/entries.ts`, `MOOD_MIN` /
 `MOOD_MAX` in `server/src/resolvers/write-guards.ts`, and `MOODS` in
 `app/src/lib/mood.ts`. The database is the guarantee; the hook exists only so a
 caller who sent `6` is told the scale rather than handed `violates check
-constraint`. Widening the scale means all three.
+constraint`. Widening the scale means all three — and a fourth, now that the
+scale is drawn as a colour ramp rather than a number: `--mood-1`..`--mood-5` in
+`app/src/index.css`, defined once per theme and exposed to Tailwind through
+`@theme inline`. A step with no token draws nothing at all.
 
 **`mood` is `integer`, not the `smallint` the range would justify.**
 drizzle-graphql maps `PgInteger` to `Int` and lets `smallint` fall through to
 `Float`. A mood of `3.5` that typechecks is a worse trade than two bytes a row.
+
+**A mood is drawn as its place on the ramp, never as its number.** `MOODS` in
+`app/src/lib/mood.ts` carries the swatch class beside the word, and
+`components/domain/mood-scale.tsx` is the only thing that draws either —
+`MoodDot` for a recorded day in the rail and the cards, `MoodSpectrum` for the
+picker. Two things there are load-bearing. The swatch class repeats itself under
+`dark:` because the vendored `RadioGroupItem` ships a `dark:bg-input/30` and
+`tailwind-merge` only resolves a conflict within one variant, so an unprefixed
+`bg-mood-3` loses in exactly one theme. And every step of the picker stays at
+full colour, with the ring alone marking the choice: dimming the other four
+washes the ramp to pastel on the light background and to mud on the dark one,
+where steps 1 and 2 become the same brown.
 
 **`mood` is nullable and that is not an oversight.** A day someone wrote about
 without rating is a complete entry. Anything consuming this data for correlation

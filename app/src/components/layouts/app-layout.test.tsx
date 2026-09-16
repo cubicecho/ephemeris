@@ -1,7 +1,7 @@
 import { MockedProvider } from '@apollo/client/testing/react';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { RecentEntries } from '@/components/domain/recent-days';
 import { AppLayout } from '@/components/layouts/app-layout';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -11,7 +11,22 @@ const DAYS = [
   { __typename: 'Entry' as const, id: '2', entryDate: '2026-09-14', body: 'Yesterday.', mood: null },
 ];
 
-function renderShell(today = '2026-09-15') {
+/**
+ * The day the fixtures are written against. `AppLayout` reads the clock itself —
+ * `todayIso()`, not a prop — so the rail's "Today" link and the row that says
+ * "Today" rather than a date both depend on it, and a test that only set the
+ * route was a test that passed on the 15th of September 2026 and never again.
+ */
+const TODAY = '2026-09-15';
+
+beforeAll(() => {
+  // Noon local, so the fake instant is the 15th in every timezone.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date(`${TODAY}T12:00:00`));
+});
+afterAll(() => vi.useRealTimers());
+
+function renderShell(today = TODAY) {
   return render(
     <MockedProvider mocks={[{ request: { query: RecentEntries }, result: { data: { entries: DAYS } } }]}>
       <MemoryRouter initialEntries={[`/${today}`]}>
@@ -49,15 +64,16 @@ describe('AppLayout', () => {
     renderShell();
     const rail = screen.getByRole('complementary');
 
-    expect(within(rail).getByRole('link', { name: 'Today' })).toHaveAttribute('href', '/2026-09-15');
+    expect(within(rail).getByRole('link', { name: 'Today' })).toHaveAttribute('href', `/${TODAY}`);
     // The 15th is today, so the rail says "Today" rather than the date; the
-    // 14th is not, so it says the day.
+    // 14th is not, so it says the day. The mood rides along as a swatch, whose
+    // only text is the word behind it — the rail draws no number.
     const days = await within(rail).findByRole('navigation', { name: 'Recent days' });
     expect(
       within(days)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Today4', 'Yesterday']);
+    ).toEqual(['TodayGood', 'Yesterday']);
     expect(within(screen.getByRole('banner')).getByText(/of the last 30 days written/)).toBeInTheDocument();
   });
 });

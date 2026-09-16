@@ -2,12 +2,12 @@ import { useQuery } from '@apollo/client/react';
 import { BookOpen } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { graphql } from '@/__generated__';
+import { MoodDot } from '@/components/domain/mood-scale';
 import { QueryState } from '@/components/query-state';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDay, formatFullDate } from '@/lib/date';
-import { moodLabel } from '@/lib/mood';
 import { queryLike } from '@/lib/query';
 import { cn } from '@/lib/utils';
 
@@ -71,7 +71,7 @@ export function RecentDaysNav({ today }: { today: string }) {
           }
         >
           <span className="min-w-0 truncate">{entry.entryDate === today ? 'Today' : formatDay(entry.entryDate)}</span>
-          {entry.mood ? <span className="shrink-0 text-muted-foreground text-xs">{entry.mood}</span> : null}
+          <MoodDot mood={entry.mood} />
         </NavLink>
       ))}
     </nav>
@@ -110,9 +110,7 @@ export function RecentDaysList({ className }: { className?: string }) {
             <ItemContent>
               <ItemTitle>
                 {formatFullDate(entry.entryDate)}
-                {moodLabel(entry.mood) && (
-                  <span className="ml-2 font-normal text-muted-foreground">{moodLabel(entry.mood)}</span>
-                )}
+                <MoodDot mood={entry.mood} label className="ml-2" />
               </ItemTitle>
               <ItemDescription>{entry.body.trim() || 'No words that day.'}</ItemDescription>
             </ItemContent>

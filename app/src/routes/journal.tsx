@@ -5,16 +5,15 @@ import { Link, Navigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { ActionButton } from '@/components/action-button';
 import { CardLayout } from '@/components/card-layout';
+import { MoodSpectrum } from '@/components/domain/mood-scale';
 import { RECENT_LIMIT, RecentDaysList, RecentEntries } from '@/components/domain/recent-days';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { Section } from '@/components/section';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDay, formatFullDate, isValidIsoDate, shiftDays, todayIso } from '@/lib/date';
-import { MOODS, NO_MOOD } from '@/lib/mood';
+import { NO_MOOD } from '@/lib/mood';
 
 const JournalDay = graphql(`
   query JournalDay($date: String!) {
@@ -153,31 +152,16 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
               label="Mood"
               asGroup
               description="Optional, and the only part of an entry anything else can read."
-              control={
-                <RadioGroup
-                  className="flex flex-wrap gap-x-5 gap-y-2"
+              control={(props) => (
+                <MoodSpectrum
+                  {...props}
                   value={mood}
                   onValueChange={(next) => {
                     setMood(next);
                     setSaved(false);
                   }}
-                >
-                  {MOODS.map((option) => (
-                    <div key={option.value} className="flex items-center gap-2">
-                      <RadioGroupItem id={`mood-${option.value}`} value={String(option.value)} />
-                      <Label htmlFor={`mood-${option.value}`} className="font-normal">
-                        {option.value} · {option.label}
-                      </Label>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem id="mood-none" value={NO_MOOD} />
-                    <Label htmlFor="mood-none" className="font-normal text-muted-foreground">
-                      Not recorded
-                    </Label>
-                  </div>
-                </RadioGroup>
-              }
+                />
+              )}
             />
           </div>
         }
