@@ -1,0 +1,64 @@
+import './preflight.ts';
+
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { db } from '@cubicecho/ephemeris-db';
+import cors from 'cors';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import express from 'express';
+import { appUrl, magicLinkExposed, magicLinkRequired, port, secureLocalNet } from './config.ts';
+import { createGraphQLHandler } from './graphql.ts';
+import { createStaticHandler } from './static.ts';
+
+export type { Context } from './context.ts';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = port();
+const staticDir = join(__dirname, '../../app/dist');
+
+// Migrations run at boot so `docker compose up` on a fresh volume is the whole
+// install. They are idempotent; a container restart is a no-op.
+try {
+  await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
+} catch (error) {
+  const cause = (error as { cause?: NodeJS.ErrnoException })?.cause;
+  if (cause && (cause.code === 'ECONNREFUSED' || cause.code === 'ENOTFOUND' || cause.code === 'ETIMEDOUT')) {
+    const { hostname, port } = new URL(process.env.DATABASE_URL ?? '');
+    console.error(`✖ Cannot reach Postgres at ${hostname}:${port || 5432} (${cause.code}).`);
+    console.error('  Check DATABASE_URL in .env, and that the database is up and reachable from here.');
+    console.error('  If your Docker daemon is remote (`docker context ls`), a container published on');
+    console.error("  127.0.0.1 is bound to the daemon host's loopback. Set DEV_BIND=0.0.0.0 and");
+    console.error('  re-run `npm run db:up`.');
+    process.exit(1);
+  }
+  throw error;
+}
+
+const app = express();
+const graphql = createGraphQLHandler({ db });
+const serveStatic = createStaticHandler(staticDir);
+
+app.use(cors());
+// `all` rather than `use`: a mounted `use` strips the path from req.url, and
+// Yoga matches the request against `graphqlEndpoint` itself.
+app.all(graphql.graphqlEndpoint, (req, res) => graphql(req, res));
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true });
+});
+app.use((req, res) => serveStatic(req, res));
+
+app.listen(PORT, '0.0.0.0', () => {
+  // APP_URL, not localhost: on a NAS the banner is the only place the operator
+  // sees what the instance thinks its own address is, and a wrong one there is
+  // the same wrong one that breaks their magic links.
+  console.log(`📓 Ephemeris ready at ${appUrl()}`);
+  console.log(`   GraphQL at ${appUrl()}/graphql`);
+  if (!magicLinkRequired()) {
+    // Name the variable that did it: on an instance with both set, "turn it
+    // back on" is useless advice if it points at the wrong switch.
+    const why = secureLocalNet() ? 'SECURE_LOCAL_NET is on' : 'AUTH_MAGIC_LINK is off';
+    console.warn(`⚠️  ${why}: any email address signs in without a link. Private networks only.`);
+  } else if (magicLinkExposed()) {
+    console.warn('⚠️  EXPOSE_MAGIC_LINK is on: sign-in links are returned in API responses. Private networks only.');
+  }
+});
