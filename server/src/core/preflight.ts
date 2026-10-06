@@ -1,6 +1,5 @@
-// Environment checks that must run before anything opens a connection or signs a
-// token. Imported for its side effects as the very first import of index.ts, so
-// a misconfigured instance fails with a sentence rather than a stack trace.
+// Environment checks that run before anything opens a connection or signs a token. Imported for its side effects as
+// the first import of index.ts, so a misconfigured instance fails with a sentence, not a stack trace.
 
 import { DEV_SECRET, isProduction } from './config.ts';
 import { AUTH_DEFAULTS } from './defaults.ts';
@@ -14,7 +13,7 @@ const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
  * @param message - What is wrong and how to fix it.
  */
 function fatal(message: string): never {
-  console.error(`FATAL: ${message}`);
+  console.error(`[preflight] ${message}`);
   process.exit(1);
 }
 
@@ -26,8 +25,7 @@ if (isProduction()) {
   const secret = process.env.JWT_SECRET ?? '';
   const isTooShort = secret.length < AUTH_DEFAULTS.minSecretLength;
   const isPublished = secret === DEV_SECRET || secret === PLACEHOLDER_SECRET;
-  // Session tokens are signed with this and nothing else. A known or guessable
-  // secret means anyone can mint a token for any account.
+  // Session tokens are signed with this and nothing else. A known or guessable secret lets anyone mint one.
   if (isTooShort || isPublished) {
     fatal('JWT_SECRET must be set to a strong random value in production. Generate one with `openssl rand -hex 32`.');
   }
