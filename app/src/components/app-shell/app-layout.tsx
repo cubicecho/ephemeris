@@ -1,3 +1,4 @@
+import { useApolloClient } from '@apollo/client/react';
 import { BookOpen, CalendarDays, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { ActionButton } from '@/components/action-button';
@@ -10,11 +11,20 @@ import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';
 
-/** Forgets the token and goes back to the login screen — for shared machines. */
-function useSignOut() {
+/**
+ * Signing out, for shared machines: forgets the token and the cached entries, then goes to the login screen.
+ *
+ * The cache goes too because it outlives the token. Without that the next person to sign in on this tab is shown the
+ * last person's days until their own arrive.
+ *
+ * @returns The function a Sign out control calls.
+ */
+function useSignOut(): () => Promise<void> {
   const navigate = useNavigate();
-  return () => {
+  const client = useApolloClient();
+  return async () => {
     clearToken();
+    await client.clearStore();
     navigate('/login', { replace: true });
   };
 }

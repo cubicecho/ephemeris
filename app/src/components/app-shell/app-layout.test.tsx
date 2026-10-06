@@ -1,5 +1,7 @@
+import type { ApolloClient } from '@apollo/client';
+import { useApolloClient } from '@apollo/client/react';
 import { MockedProvider } from '@apollo/client/testing/react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from '@/components/app-shell/app-layout';
@@ -70,5 +72,28 @@ describe('AppLayout', () => {
     ]);
     expect(within(days).getByText('2 of the last 30 days written')).toBeInTheDocument();
     expect(within(screen.getByRole('banner')).getByText(/of the last 30 days written/)).toBeInTheDocument();
+  });
+
+  it('forgets the cached days on sign-out', async () => {
+    let client: ApolloClient | undefined;
+    /** Hands the test the client the shell is drawn under. */
+    function CaptureClient() {
+      client = useApolloClient();
+      return null;
+    }
+    render(
+      <MockedProvider mocks={[{ request: { query: RecentEntries }, result: { data: { entries: DAYS } } }]}>
+        <MemoryRouter initialEntries={[`/${TODAY}`]}>
+          <AppLayout contentSlot={<CaptureClient />} />
+        </MemoryRouter>
+      </MockedProvider>,
+    );
+    const rail = screen.getByRole('complementary');
+    await within(rail).findByText('2 of the last 30 days written');
+    expect(Object.keys(client?.extract() ?? {})).not.toHaveLength(0);
+
+    fireEvent.click(within(rail).getByRole('button', { name: 'Sign out' }));
+
+    await waitFor(() => expect(client?.extract()).toEqual({}));
   });
 });
