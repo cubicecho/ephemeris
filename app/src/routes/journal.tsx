@@ -8,6 +8,7 @@ import { MoodSpectrum } from '@/components/domain/mood-scale';
 import { RECENT_LIMIT, RecentDaysList, RecentEntries } from '@/components/domain/recent-days';
 import { FormField } from '@/components/form-field';
 import { PageLayout } from '@/components/page-layout';
+import { QueryError } from '@/components/query-state';
 import { Section } from '@/components/section';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from '@/components/ui/icons';
@@ -15,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { formatDay, formatFullDate, isValidIsoDate, shiftDays, todayIso } from '@/lib/date';
 import { NO_MOOD } from '@/lib/mood';
 
-const JournalDay = graphql(`
+export const JournalDay = graphql(`
   query JournalDay($date: String!) {
     entry(where: { entryDate: { eq: $date } }) {
       id
@@ -63,6 +64,7 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
   const result = useQuery(JournalDay, { variables: { date } });
   const { data } = result;
   const entry = data?.entry ?? null;
+  const hasFailedToLoad = result.error !== undefined && data === undefined;
 
   const [body, setBody] = useState('');
   const [mood, setMood] = useState<string>(NO_MOOD);
@@ -136,63 +138,68 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
       }
       contentSlot={
         <div className="flex flex-col gap-6">
-          <CardLayout
-            title="Entry"
-            level={2}
-            description="One a day. Saving again edits the same day rather than adding to it."
-            loading={result.loading && !data}
-            contentSlot={
-              <div className="flex flex-col gap-6">
-                <FormField
-                  label="How the day went"
-                  error={saveError?.message}
-                  controlSlot={
-                    <Textarea
-                      rows={12}
-                      value={body}
-                      placeholder="What happened, and what you made of it."
-                      onChangeText={(next) => {
-                        setBody(next);
-                        setSaved(false);
-                      }}
-                    />
-                  }
+          {hasFailedToLoad ? (
+            // A day that failed to load is not an unwritten one: an editor here would save over it.
+            <QueryError error={result.error} onRetry={() => result.refetch()} what="this day's entry" />
+          ) : (
+            <CardLayout
+              title="Entry"
+              level={2}
+              description="One a day. Saving again edits the same day rather than adding to it."
+              loading={result.loading && !data}
+              contentSlot={
+                <div className="flex flex-col gap-6">
+                  <FormField
+                    label="How the day went"
+                    error={saveError?.message}
+                    controlSlot={
+                      <Textarea
+                        rows={12}
+                        value={body}
+                        placeholder="What happened, and what you made of it."
+                        onChangeText={(next) => {
+                          setBody(next);
+                          setSaved(false);
+                        }}
+                      />
+                    }
+                  />
+                  <FormField
+                    label="Mood"
+                    asGroup
+                    description="Optional, and the only part of an entry anything else can read."
+                    controlSlot={(props) => (
+                      <MoodSpectrum
+                        {...props}
+                        value={mood}
+                        onValueChange={(next) => {
+                          setMood(next);
+                          setSaved(false);
+                        }}
+                      />
+                    )}
+                  />
+                </div>
+              }
+              footerSlot={
+                saved && !dirty ? (
+                  <span className="text-foreground/60 text-sm" role="status">
+                    Saved.
+                  </span>
+                ) : null
+              }
+              footerActionsSlot={
+                <Button
+                  variant="positive"
+                  content={entry ? 'Save changes' : 'Save entry'}
+                  loading={saving}
+                  loadingLabel="Saving…"
+                  disabled={!dirty}
+                  onClick={submit}
                 />
-                <FormField
-                  label="Mood"
-                  asGroup
-                  description="Optional, and the only part of an entry anything else can read."
-                  controlSlot={(props) => (
-                    <MoodSpectrum
-                      {...props}
-                      value={mood}
-                      onValueChange={(next) => {
-                        setMood(next);
-                        setSaved(false);
-                      }}
-                    />
-                  )}
-                />
-              </div>
-            }
-            footerSlot={
-              saved && !dirty ? (
-                <span className="text-foreground/60 text-sm" role="status">
-                  Saved.
-                </span>
-              ) : null
-            }
-            footerActionsSlot={
-              <Button
-                variant="positive"
-                content={entry ? 'Save changes' : 'Save entry'}
-                loading={saving}
-                loadingLabel="Saving…"
-                disabled={!dirty}
-                onClick={submit}
-              />
-            }
-          />
+              }
+            />
+          )}
 
           {/* The rail already lists these; this is the same list for the widths that
               have no rail. */}
