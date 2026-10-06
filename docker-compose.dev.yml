@@ -1,41 +1,21 @@
-# Infrastructure only — Postgres, and whatever else the app needs but does not
-# implement. The app itself is not here: you run it from source with `npm run
-# dev`, against whatever this file started.
-#
-# Two ways to run it:
+# Infrastructure only: Postgres. The app is not here. Run it from source with `npm run dev`.
 #
 #   npm run db:up          on this machine, published on 127.0.0.1
-#   npm run db:up:lan      on the docker.lan host, published on its LAN address
+#   npm run db:up:lan      on the docker.lan host, published on its LAN address (see .env.local.example)
 #
-# The second one is why `.env.local` exists — see `.env.local.example`.
-#
-# Its own project name, so it never collides with the container
-# docker-compose.yml creates — both files define `postgres`.
+# Its own project name, so it never collides with docker-compose.yml's containers.
 name: ephemeris-dev
-
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ephemeris
-      # Overridable because DEV_BIND=0.0.0.0 puts this on a network where
-      # "ephemeris" is no longer a password anyone should rely on.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ephemeris}
-      POSTGRES_DB: ephemeris
+    # The password is overridable because DEV_BIND=0.0.0.0 puts this on a network.
+    environment: { POSTGRES_USER: ephemeris, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-ephemeris}", POSTGRES_DB: ephemeris }
     ports:
-      # Loopback by default: an unencrypted Postgres with a throwaway password
-      # has no business on a network. `npm run db:up:lan` overrides DEV_BIND to
-      # 0.0.0.0 on purpose, because the loopback a remote daemon binds is that
-      # host's, not yours — nothing on your machine could reach it otherwise.
+      # Loopback by default. Set DEV_BIND=0.0.0.0 when the Docker daemon is remote
+      # (`docker context ls`), because 127.0.0.1 there is the daemon host's loopback.
       - "${DEV_BIND:-127.0.0.1}:${POSTGRES_PORT:-5437}:5432"
-    volumes:
-      - ephemeris_dev_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ephemeris -d ephemeris"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
+    volumes: [ephemeris_dev_pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ephemeris -d ephemeris"], interval: 5s, timeout: 5s, retries: 10 }
 volumes:
   ephemeris_dev_pgdata:
