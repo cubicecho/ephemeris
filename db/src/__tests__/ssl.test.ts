@@ -7,6 +7,10 @@ describe('requiresSsl', () => {
     ['a URL that does not parse', 'not a url'],
     ['localhost', 'postgres://app:app@localhost:5432/app'],
     ['a .localhost name', 'postgres://app:app@db.localhost:5432/app'],
+    ['a .lan name', 'postgres://app:app@docker.lan:5432/app'],
+    ['an mDNS name', 'postgres://app:app@nas.local:5432/app'],
+    ['an .internal name', 'postgres://app:app@db.corp.internal:5432/app'],
+    ['a .home.arpa name', 'postgres://app:app@db.home.arpa:5432/app'],
     ['a compose service name behind credentials', 'postgres://user:pass@postgres:5432/app'],
     ['IPv4 loopback', 'postgres://app:app@127.0.0.1:5432/app'],
     ['10/8', 'postgres://app:app@10.0.0.5:5432/app'],
@@ -23,6 +27,7 @@ describe('requiresSsl', () => {
 
   it.each([
     ['a public hostname', 'postgres://app:app@db.example.com:5432/app'],
+    ['a public name that only contains a private ending', 'postgres://app:app@db.lan.example.com:5432/app'],
     ['a public IPv4 address', 'postgres://app:app@8.8.8.8:5432/app'],
     ['just below 172.16/12', 'postgres://app:app@172.15.0.1:5432/app'],
     ['just above 172.16/12', 'postgres://app:app@172.32.0.1:5432/app'],

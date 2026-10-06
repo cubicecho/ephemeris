@@ -16,6 +16,10 @@ const PRIVATE_IPV4_RANGES: readonly PrivateIpv4Range[] = Object.freeze([
   { first: 169, secondFrom: 254, secondTo: 254 },
 ]);
 
+/** Name endings that only resolve on a private network: mDNS, the usual LAN zones and the reserved home zone. */
+const PRIVATE_SUFFIXES: readonly string[] = Object.freeze(['.localhost', '.local', '.lan', '.internal', '.home.arpa']);
+const LOCALHOST = 'localhost';
+
 const IPV4 = /^(?<first>\d{1,3})\.(?<second>\d{1,3})\.\d{1,3}\.\d{1,3}$/;
 const IPV6_LOOPBACK = '::1';
 /** fc00::/7. */
@@ -26,8 +30,8 @@ const IPV6_LINK_LOCAL = /^fe[89ab]/;
 /**
  * Reads the host out of a connection string.
  *
- * The parsed hostname, never the raw string: a URL carrying credentials puts
- * the userinfo where a prefix match looks for the host.
+ * The parsed hostname, never the raw string: a URL carrying credentials puts the userinfo where a prefix match looks
+ * for the host.
  *
  * @param url - Connection URL.
  * @returns The lowercased host without IPv6 brackets, or null when the URL does not parse.
@@ -56,9 +60,9 @@ function isPrivateIpv4(first: number, second: number): boolean {
 /**
  * Whether to insist on TLS for a connection string.
  *
- * "Local" is wider than loopback here, because self-hosting is. A bare
- * `postgres` is a service on a compose network and `10.0.0.5` is a box on the
- * LAN: neither speaks TLS by default, and demanding it breaks the connection.
+ * "Local" is wider than loopback here, because self-hosting is. A bare `postgres` is a service on a compose network,
+ * `10.0.0.5` is a box on the LAN and `db.lan` is its name: none speaks TLS by default, and demanding it breaks the
+ * connection.
  *
  * @param url - Connection URL.
  * @returns false for an explicit sslmode, an unparseable URL, or a private or local host.
@@ -74,7 +78,8 @@ export function requiresSsl(url: string): boolean {
     return false;
   }
 
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+  const isPrivateName = hostname === LOCALHOST || PRIVATE_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+  if (isPrivateName) {
     return false;
   }
   // A name with no dots is a container or LAN hostname, not a public address.
