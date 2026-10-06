@@ -52,12 +52,9 @@ export function VerifyPage() {
   }
   return (
     <CenteredLayout
-      contentSlot={
-        <div className="flex items-center justify-center gap-2 text-foreground/60 text-sm" role="status">
-          <Spinner />
-          Signing you in…
-        </div>
-      }
+      title="Signing you in…"
+      level={1}
+      contentSlot={<Spinner label="Signing you in" className="mx-auto" />}
     />
   );
 }
