@@ -87,7 +87,7 @@ export function RecentDaysSection({ today }: { today: string }) {
             key={entry.id}
             to={`/${entry.entryDate}`}
             label={entry.entryDate === today ? 'Today' : formatDay(entry.entryDate)}
-            status={mood ? { label: mood, iconSlot: <MoodDot mood={entry.mood} silent /> } : undefined}
+            status={mood ? { label: mood, iconSlot: <MoodDot mood={entry.mood} wording="none" /> } : undefined}
           />
         );
       })}
@@ -127,7 +127,7 @@ export function RecentDaysList({ className }: { className?: string }) {
             <ItemContent>
               <ItemTitle>
                 {formatFullDate(entry.entryDate)}
-                <MoodDot mood={entry.mood} label className="ml-2" />
+                <MoodDot mood={entry.mood} wording="printed" className="ml-2" />
               </ItemTitle>
               <ItemDescription>{entry.body.trim() || 'No words that day.'}</ItemDescription>
             </ItemContent>
