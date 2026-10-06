@@ -3,11 +3,11 @@ import { BookOpen } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
-import { CardLayout } from '@/components/card-layout';
-import { ThemeSelect } from '@/components/domain/theme-select';
+import { CenteredLayout } from '@/components/centered-layout';
 import { FormField } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
 
 const RequestMagicLink = graphql(`
@@ -47,58 +47,46 @@ export function LoginPage() {
   const localLink = sent?.magicLink ? `/auth/verify${new URL(sent.magicLink).search}` : null;
 
   return (
-    <main className="flex min-h-svh items-center justify-center p-4">
-      <CardLayout
-        className="w-full max-w-sm"
-        icon={<BookOpen />}
-        title="Sign in to Ephemeris"
-        description={
-          sent ? `We sent a sign-in link to ${email}.` : 'A journal of one. We will email you a link to sign in.'
-        }
-        content={
-          sent ? (
-            localLink ? (
-              <p className="text-sm">
-                This instance exposes sign-in links.{' '}
-                <Link className="font-medium underline" to={localLink}>
-                  Sign in now
-                </Link>
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-sm">Open the link in that email to finish signing in.</p>
-            )
+    <CenteredLayout
+      iconSlot={<BookOpen />}
+      title="Sign in to Ephemeris"
+      // The card is the whole page here, so its title is the page's heading.
+      level={1}
+      description={
+        sent ? `We sent a sign-in link to ${email}.` : 'A journal of one. We will email you a link to sign in.'
+      }
+      contentSlot={
+        sent ? (
+          localLink ? (
+            <p className="text-sm">
+              This instance exposes sign-in links.{' '}
+              <Link className="font-medium underline" to={localLink}>
+                Sign in now
+              </Link>
+            </p>
           ) : (
-            <form id="login" onSubmit={submit} className="flex flex-col gap-4">
-              <FormField
-                label="Email"
-                required
-                error={error?.message}
-                control={
-                  <Input
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                }
-              />
-            </form>
+            <p className="text-foreground/60 text-sm">Open the link in that email to finish signing in.</p>
           )
-        }
-        footer={<ThemeSelect />}
-        footerActions={
-          sent ? (
-            <Button variant="outline" onClick={() => setSent(null)}>
-              Use a different email
-            </Button>
-          ) : (
-            <Button type="submit" form="login" disabled={loading}>
-              {loading ? 'Sending…' : 'Send sign-in link'}
-            </Button>
-          )
-        }
-      />
-    </main>
+        ) : (
+          <form id="login" onSubmit={submit} className="flex flex-col gap-4">
+            <FormField
+              label="Email"
+              required
+              error={error?.message}
+              controlSlot={<Input type="email" autoComplete="email" required value={email} onChangeText={setEmail} />}
+            />
+          </form>
+        )
+      }
+      // The theme is a device preference, so it has to be reachable signed out.
+      footerSlot={<ThemePicker variant="compact" className="w-28" />}
+      footerActionsSlot={
+        sent ? (
+          <Button variant="outline" content="Use a different email" onClick={() => setSent(null)} />
+        ) : (
+          <Button type="submit" form="login" content="Send sign-in link" loading={loading} loadingLabel="Sending…" />
+        )
+      }
+    />
   );
 }

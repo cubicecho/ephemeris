@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from '@apollo/client/react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { graphql } from '@/__generated__';
@@ -8,9 +7,10 @@ import { CardLayout } from '@/components/card-layout';
 import { MoodSpectrum } from '@/components/domain/mood-scale';
 import { RECENT_LIMIT, RecentDaysList, RecentEntries } from '@/components/domain/recent-days';
 import { FormField } from '@/components/form-field';
-import { PageHeader } from '@/components/page-header';
+import { PageLayout } from '@/components/page-layout';
 import { Section } from '@/components/section';
 import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from '@/components/ui/icons';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDay, formatFullDate, isValidIsoDate, shiftDays, todayIso } from '@/lib/date';
 import { NO_MOOD } from '@/lib/mood';
@@ -90,103 +90,115 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
   }
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
-      <PageHeader
-        // The chassis around this one is `AppLayout`'s padded `<main>`, so the
-        // header gives up its own inset rather than adding a second one.
-        className="px-0 py-0"
-        titleClassName="text-2xl"
-        title={formatDay(date)}
-        description={date === today ? formatFullDate(date) : `${formatFullDate(date)} · not today`}
-        content={
-          <div className="flex items-center gap-2">
-            <ActionButton label="Previous day" variant="outline" size="icon-sm" asChild>
-              <Link to={`/${shiftDays(date, -1)}`}>
-                <ChevronLeft className="size-4" aria-hidden />
-              </Link>
-            </ActionButton>
+    <PageLayout
+      // A journal page is a column of prose, not a dashboard: the narrow measure.
+      width="prose"
+      title={formatDay(date)}
+      description={date === today ? formatFullDate(date) : `${formatFullDate(date)} · not today`}
+      actionSlot={
+        <>
+          <ActionButton
+            label="Previous day"
+            variant="outline"
+            size="icon-sm"
+            iconSlot={<ChevronLeft />}
+            linkSlot={<Link to={`/${shiftDays(date, -1)}`} />}
+          />
+          {date >= today ? (
+            // A journal has nothing to say about tomorrow, so there is no link
+            // to it at all — a disabled anchor is still an anchor.
             <ActionButton
               label="Next day"
               variant="outline"
               size="icon-sm"
-              asChild
-              // A journal has nothing to say about tomorrow.
-              disabled={date >= today}
-              hint={date >= today ? 'Tomorrow has not happened yet' : undefined}
-            >
-              <Link to={`/${shiftDays(date, 1)}`}>
-                <ChevronRight className="size-4" aria-hidden />
-              </Link>
-            </ActionButton>
-            {date !== today && (
-              <Button variant="ghost" size="sm" asChild>
-                <Link to={`/${today}`}>Back to today</Link>
-              </Button>
-            )}
-          </div>
-        }
-      />
-
-      <CardLayout
-        title="Entry"
-        description="One a day. Saving again edits the same day rather than adding to it."
-        loading={result.loading && !data}
-        content={
-          <div className="flex flex-col gap-6">
-            <FormField
-              label="How the day went"
-              error={saveError?.message}
-              control={
-                <Textarea
-                  rows={12}
-                  value={body}
-                  placeholder="What happened, and what you made of it."
-                  onChange={(event) => {
-                    setBody(event.target.value);
-                    setSaved(false);
-                  }}
-                />
-              }
+              iconSlot={<ChevronRight />}
+              disabled
+              hint="Tomorrow has not happened yet"
             />
-            <FormField
-              label="Mood"
-              asGroup
-              description="Optional, and the only part of an entry anything else can read."
-              control={(props) => (
-                <MoodSpectrum
-                  {...props}
-                  value={mood}
-                  onValueChange={(next) => {
-                    setMood(next);
-                    setSaved(false);
-                  }}
-                />
-              )}
+          ) : (
+            <ActionButton
+              label="Next day"
+              variant="outline"
+              size="icon-sm"
+              iconSlot={<ChevronRight />}
+              linkSlot={<Link to={`/${shiftDays(date, 1)}`} />}
             />
-          </div>
-        }
-        footer={
-          saved && !dirty ? (
-            <span className="text-muted-foreground text-sm" role="status">
-              Saved.
-            </span>
-          ) : null
-        }
-        footerActions={
-          <Button onClick={submit} disabled={saving || !dirty}>
-            {saving ? 'Saving…' : entry ? 'Save changes' : 'Save entry'}
-          </Button>
-        }
-      />
+          )}
+          {date !== today && (
+            <Button variant="outline" size="sm" content="Back to today" linkSlot={<Link to={`/${today}`} />} />
+          )}
+        </>
+      }
+      contentSlot={
+        <div className="flex flex-col gap-6">
+          <CardLayout
+            title="Entry"
+            level={2}
+            description="One a day. Saving again edits the same day rather than adding to it."
+            loading={result.loading && !data}
+            contentSlot={
+              <div className="flex flex-col gap-6">
+                <FormField
+                  label="How the day went"
+                  error={saveError?.message}
+                  controlSlot={
+                    <Textarea
+                      rows={12}
+                      value={body}
+                      placeholder="What happened, and what you made of it."
+                      onChangeText={(next) => {
+                        setBody(next);
+                        setSaved(false);
+                      }}
+                    />
+                  }
+                />
+                <FormField
+                  label="Mood"
+                  asGroup
+                  description="Optional, and the only part of an entry anything else can read."
+                  controlSlot={(props) => (
+                    <MoodSpectrum
+                      {...props}
+                      value={mood}
+                      onValueChange={(next) => {
+                        setMood(next);
+                        setSaved(false);
+                      }}
+                    />
+                  )}
+                />
+              </div>
+            }
+            footerSlot={
+              saved && !dirty ? (
+                <span className="text-foreground/60 text-sm" role="status">
+                  Saved.
+                </span>
+              ) : null
+            }
+            footerActionsSlot={
+              <Button
+                variant="positive"
+                content={entry ? 'Save changes' : 'Save entry'}
+                loading={saving}
+                loadingLabel="Saving…"
+                disabled={!dirty}
+                onClick={submit}
+              />
+            }
+          />
 
-      {/* The rail already lists these; this is the same list for the widths that
-          have no rail. */}
-      <Section
-        className="md:hidden"
-        title="Recent"
-        description={`The last ${RECENT_LIMIT} days you wrote about.`}
-        content={<RecentDaysList />}
-      />
-    </div>
+          {/* The rail already lists these; this is the same list for the widths that
+              have no rail. */}
+          <Section
+            className="md:hidden"
+            title="Recent"
+            description={`The last ${RECENT_LIMIT} days you wrote about.`}
+            contentSlot={<RecentDaysList />}
+          />
+        </div>
+      }
+    />
   );
 }

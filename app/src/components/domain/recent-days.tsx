@@ -3,11 +3,13 @@ import { BookOpen } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { graphql } from '@/__generated__';
 import { MoodDot } from '@/components/domain/mood-scale';
+import { RailLink } from '@/components/layouts/rail-link';
+import { EmptyState } from '@/components/page';
 import { QueryState } from '@/components/query-state';
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { SidebarSection } from '@/components/sidebar';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
-import { Skeleton } from '@/components/ui/skeleton';
 import { formatDay, formatFullDate } from '@/lib/date';
+import { moodLabel } from '@/lib/mood';
 import { queryLike } from '@/lib/query';
 import { cn } from '@/lib/utils';
 
@@ -35,52 +37,66 @@ export function useRecentEntries() {
 }
 
 /**
- * The days in the sidebar: the same nav-link shape the other apps use for their
- * sections, because on a one-page app the days *are* the sections.
+ * The days in the sidebar: the same rows other apps use for their sections,
+ * because on a one-page app the days *are* the sections — which is also why
+ * this one is a navigation landmark and not just a list.
+ *
+ * A row's mood is its `status`: the row reads "Today, Good" and draws the
+ * swatch, so the dot is told to stay silent rather than say the word twice.
  */
-export function RecentDaysNav({ today }: { today: string }) {
-  const { data, loading } = useRecentEntries();
-  const entries = data?.entries ?? [];
-
-  if (loading && !data) {
-    return (
-      <div className="flex flex-col gap-2 px-3 py-2">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-24" />
-      </div>
-    );
-  }
-  if (entries.length === 0) {
-    return <p className="px-3 py-2 text-muted-foreground text-sm">Nothing written yet.</p>;
-  }
+export function RecentDaysSection({ today }: { today: string }) {
+  const result = useRecentEntries();
+  const entries = result.data?.entries ?? [];
 
   return (
-    <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 pb-2" aria-label="Recent days">
-      {entries.map((entry) => (
-        <NavLink
-          key={entry.id}
-          to={`/${entry.entryDate}`}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm',
-              isActive
-                ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-            )
-          }
-        >
-          <span className="min-w-0 truncate">{entry.entryDate === today ? 'Today' : formatDay(entry.entryDate)}</span>
-          <MoodDot mood={entry.mood} />
-        </NavLink>
-      ))}
-    </nav>
+    <SidebarSection
+      as="nav"
+      title="Recent"
+      label="Recent days"
+      actionSlot={
+        result.data ? (
+          <span className="px-1 text-foreground/60 text-xs tabular-nums">
+            <span aria-hidden>
+              {entries.length}/{RECENT_LIMIT}
+            </span>
+            <span className="sr-only">
+              {entries.length} of the last {RECENT_LIMIT} days written
+            </span>
+          </span>
+        ) : null
+      }
+      status={
+        <QueryState
+          compact
+          className="px-2"
+          query={queryLike(result)}
+          what="your entries"
+          count={entries.length}
+          emptySlot={<EmptyState compact className="px-2" title="Nothing written yet." />}
+        />
+      }
+      contentSlot={entries.map((entry) => {
+        const mood = moodLabel(entry.mood);
+        return (
+          <RailLink
+            key={entry.id}
+            to={`/${entry.entryDate}`}
+            label={entry.entryDate === today ? 'Today' : formatDay(entry.entryDate)}
+            status={mood ? { label: mood, iconSlot: <MoodDot mood={entry.mood} silent /> } : undefined}
+          />
+        );
+      })}
+    />
   );
 }
 
 /**
  * The same days as cards, for the screens too narrow to have a rail. Kept in one
  * file with the rail so the two cannot drift about what "recent" means.
+ *
+ * Each card is one plain link — `Item asChild` over a `NavLink` — rather than a
+ * row with a button in it: every day is a URL, and a card you can middle-click
+ * is the whole point of that.
  */
 export function RecentDaysList({ className }: { className?: string }) {
   const result = useRecentEntries();
@@ -92,16 +108,12 @@ export function RecentDaysList({ className }: { className?: string }) {
         query={queryLike(result)}
         what="your entries"
         count={entries.length}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <BookOpen />
-              </EmptyMedia>
-              <EmptyTitle>Nothing written yet</EmptyTitle>
-              <EmptyDescription>Today's entry will show up here once you save it.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        emptySlot={
+          <EmptyState
+            icon={BookOpen}
+            title="Nothing written yet"
+            description="Today's entry will show up here once you save it."
+          />
         }
       />
       {entries.map((entry) => (
