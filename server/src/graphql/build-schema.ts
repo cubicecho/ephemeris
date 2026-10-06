@@ -1,7 +1,7 @@
 import { buildSchema } from '@vantreeseba/drizzle-graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
+import { entryWriteHooks } from '../entries/hooks.ts';
 import { contextValues, features, scope } from './tenancy.ts';
-import { onWrite } from './write-guards.ts';
 
 // The whole CRUD surface is generated from the Drizzle schema — there are no
 // hand-written create/read/update/delete resolvers, and adding a column to a
@@ -31,7 +31,7 @@ export function createSchema(db: AnyDb) {
     scope,
     contextValues,
     features,
-    onWrite,
+    onWrite: { ...entryWriteHooks },
   });
 
   const schema = applyAuthExtension(drizzleSchema);

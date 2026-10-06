@@ -1,5 +1,5 @@
 // The 1–5 scale, in one place. The server has the same range twice — a check
-// constraint on the column and a readable guard in graphql/write-guards.ts —
+// constraint on the column and a readable guard in entries/input.ts —
 // and these are the words that go with it.
 
 /**
