@@ -33,8 +33,9 @@ ephemeris/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
 │       │   ├── ui/          # shadcn/ui + cubeui primitives — vendored, not linted
-│       │   ├── layouts/     # app-layout (the SidebarLayout chrome), rail-link
-│       │   ├── domain/      # recent-days, mood-scale
+│       │   ├── app-shell/   # app-layout (the SidebarLayout chrome), rail-link
+│       │   ├── entries/     # recent-days
+│       │   ├── mood/        # mood-scale
 │       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, …)
 │       ├── routes/          # login, verify, journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
@@ -148,7 +149,7 @@ drizzle-graphql maps `PgInteger` to `Int` and lets `smallint` fall through to
 
 **A mood is drawn as its place on the ramp, never as its number.** `MOODS` in
 `app/src/lib/mood.ts` carries the swatch class beside the word, and
-`components/domain/mood-scale.tsx` is the only thing that draws either —
+`components/mood/mood-scale.tsx` is the only thing that draws either —
 `MoodDot` for a recorded day in the rail and the cards, `MoodSpectrum` for the
 picker. Two things there are load-bearing. The swatch class repeats itself under
 `focus-visible:` because cubeui's bare `RadioGroupItem` ships a
@@ -247,7 +248,7 @@ the one jsdom builds, so in the `dom` project `window.localStorage` is
 storage-unavailable branch. Also note the two Vitest projects: `app/src/lib/**/*.test.ts`
 runs under **node**, so a lib test that needs a DOM must be named `.test.tsx`.
 
-**The chrome is cubeui's, not ours.** `components/layouts/app-layout.tsx` fills
+**The chrome is cubeui's, not ours.** `components/app-shell/app-layout.tsx` fills
 `SidebarLayout` and `Sidebar` and draws nothing of its own, so it reads as one
 set of tools with `mcp-router`, `mcp-skills-manager` and `mcp-zeromem`. Nothing
 here overrides the palette or the body font. A page inside it is a
@@ -259,7 +260,7 @@ the rail too — which is why the "N of the last 30 days written" count is both
 the bar's `status` and the heading action of the rail's Recent section.
 
 **Rail and bar rows are buttons that cubeui renders, so routing is handed in.**
-`layouts/rail-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
+`app-shell/rail-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
 `useLinkClickHandler` and `active` from the location: a real `<a>` that
 middle-clicks and opens in a tab, without a full page load on a plain click.
 

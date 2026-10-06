@@ -2,8 +2,8 @@ import { MockedProvider } from '@apollo/client/testing/react';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { RecentEntries } from '@/components/domain/recent-days';
-import { AppLayout } from '@/components/layouts/app-layout';
+import { AppLayout } from '@/components/app-shell/app-layout';
+import { RecentEntries } from '@/components/entries/recent-days';
 
 const DAYS = [
   { __typename: 'Entry' as const, id: '1', entryDate: '2026-09-15', body: 'Today.', mood: 4 },

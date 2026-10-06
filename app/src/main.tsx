@@ -2,7 +2,7 @@ import { ApolloProvider } from '@apollo/client/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
-import { AppLayout } from '@/components/layouts/app-layout';
+import { AppLayout } from '@/components/app-shell/app-layout';
 import { useThemePreference } from '@/components/ui/theme-preference';
 import { apolloClient } from '@/lib/apollo';
 import { getToken } from '@/lib/auth';
