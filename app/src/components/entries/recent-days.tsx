@@ -2,7 +2,7 @@ import { useQuery } from '@apollo/client/react';
 import { BookOpen } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { graphql } from '@/__generated__';
-import { RailLink } from '@/components/app-shell/rail-link';
+import { SidebarLink } from '@/components/app-shell/sidebar-link';
 import { MoodDot } from '@/components/mood/mood-scale';
 import { EmptyState } from '@/components/page';
 import { QueryState } from '@/components/query-state';
@@ -78,7 +78,7 @@ export function RecentDaysSection({ today }: { today: string }) {
       contentSlot={entries.map((entry) => {
         const mood = moodLabel(entry.mood);
         return (
-          <RailLink
+          <SidebarLink
             key={entry.id}
             to={`/${entry.entryDate}`}
             label={entry.entryDate === today ? 'Today' : formatDay(entry.entryDate)}

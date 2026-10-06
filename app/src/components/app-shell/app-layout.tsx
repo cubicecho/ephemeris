@@ -2,7 +2,7 @@ import { BookOpen, CalendarDays, LogOut } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { ActionButton } from '@/components/action-button';
-import { BarLink, RailLink } from '@/components/app-shell/rail-link';
+import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
 import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/entries/recent-days';
 import { Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
@@ -58,7 +58,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               as="nav"
               label="Main"
               // The one link that is always the same place, wherever you have wandered to.
-              contentSlot={[<RailLink key="today" to={`/${today}`} label="Today" iconSlot={<CalendarDays />} />]}
+              contentSlot={[<SidebarLink key="today" to={`/${today}`} label="Today" iconSlot={<CalendarDays />} />]}
             />,
             <RecentDaysSection key="recent" today={today} />,
           ]}

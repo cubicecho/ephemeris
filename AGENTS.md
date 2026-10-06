@@ -33,7 +33,7 @@ ephemeris/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
 │       │   ├── ui/          # shadcn/ui + cubeui primitives — vendored, not linted
-│       │   ├── app-shell/   # app-layout (the SidebarLayout chrome), rail-link
+│       │   ├── app-shell/   # app-layout (the SidebarLayout chrome), sidebar-link
 │       │   ├── entries/     # recent-days
 │       │   ├── mood/        # mood-scale
 │       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, …)
@@ -260,7 +260,7 @@ the rail too — which is why the "N of the last 30 days written" count is both
 the bar's `status` and the heading action of the rail's Recent section.
 
 **Rail and bar rows are buttons that cubeui renders, so routing is handed in.**
-`app-shell/rail-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
+`app-shell/sidebar-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
 `useLinkClickHandler` and `active` from the location: a real `<a>` that
 middle-clicks and opens in a tab, without a full page load on a plain click.
 

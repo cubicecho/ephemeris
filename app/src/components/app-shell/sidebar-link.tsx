@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import { useLinkClickHandler, useLocation } from 'react-router';
 import { BarNavItem, SidebarNavItem } from '@/components/sidebar';
 
-type RailLinkProps = Pick<ComponentProps<typeof SidebarNavItem>, 'label' | 'iconSlot' | 'status'> & { to: string };
+type SidebarLinkProps = Pick<ComponentProps<typeof SidebarNavItem>, 'label' | 'iconSlot' | 'status'> & { to: string };
 
 /**
  * cubeui's rail row, bound to react-router. The row is a real `<a href>` — so
@@ -10,7 +10,7 @@ type RailLinkProps = Pick<ComponentProps<typeof SidebarNavItem>, 'label' | 'icon
  * takes over the plain left click, which is what `useLinkClickHandler` is.
  * `active` is the URL's own answer rather than state: every day is a URL.
  */
-export function RailLink({ to, ...row }: RailLinkProps) {
+export function SidebarLink({ to, ...row }: SidebarLinkProps) {
   const onClick = useLinkClickHandler<HTMLButtonElement>(to);
   const active = useLocation().pathname === to;
   return <SidebarNavItem href={to} active={active} onClick={onClick} {...row} />;
