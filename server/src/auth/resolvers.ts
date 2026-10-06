@@ -5,18 +5,16 @@ import { extendSchema, type GraphQLSchema, parse } from 'graphql';
 import jwt from 'jsonwebtoken';
 import { appUrl, jwtSecret, magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
-import { AUTH_DEFAULTS, RATE_LIMIT_DEFAULTS } from '../core/defaults.ts';
-import { badInput, rateLimited } from '../core/errors.ts';
-import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../core/wire.ts';
+import { AUTH_DEFAULTS } from '../core/defaults.ts';
+import { badInput } from '../core/errors.ts';
 import { objectType } from '../graphql/object-type.ts';
-import { createRateLimiter } from './rate-limit.ts';
 
-// requestMagicLink is unauthenticated, so without this anyone who can reach the port can mint magic tokens at will.
-// Per-IP limiting belongs in the reverse proxy, the only thing that reliably knows the client's address.
-const signInLimiter = createRateLimiter(
-  RATE_LIMIT_DEFAULTS.maxAttempts,
-  RATE_LIMIT_DEFAULTS.windowMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND,
-);
+/** The auth mutations that are rate limited. Each has its own budget. */
+export const AuthFlow = {
+  RequestMagicLink: 'requestMagicLink',
+  VerifyMagicLink: 'verifyMagicLink',
+} as const;
+export type AuthFlow = (typeof AuthFlow)[keyof typeof AuthFlow];
 
 const MUTATION_TYPE = 'Mutation';
 /** The claim a session token carries. */
@@ -144,6 +142,26 @@ function normalizeEmail(email: string): string {
 }
 
 /**
+ * Counts one attempt at an auth flow, by client address and by account.
+ *
+ * @param ctx - Request context.
+ * @param flow - Which mutation is being attempted.
+ * @param [email] - The typed email, when the flow has one.
+ * @throws A TOO_MANY_REQUESTS error when the address or the account is over its budget.
+ *
+ * @remarks
+ * Both mutations are unauthenticated. Unthrottled, anyone who can reach the port can mint sign-in tokens at will,
+ * bury one inbox in links, or guess at tokens as fast as they can send them.
+ */
+function throttle(ctx: Context, flow: AuthFlow, email?: string): void {
+  const keys = [`${flow}:ip:${ctx.ip}`];
+  if (email !== undefined) {
+    keys.push(`${flow}:email:${normalizeEmail(email)}`);
+  }
+  ctx.limiter.hit(...keys);
+}
+
+/**
  * Finds the account for an address, creating it on first sign-in.
  *
  * @param db - Database client.
@@ -182,11 +200,9 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const fields = objectType(extendedSchema, MUTATION_TYPE).getFields();
 
   fields.requestMagicLink.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
+    // First, so a refused attempt costs nothing.
+    throttle(context, AuthFlow.RequestMagicLink, args.email);
     const email = normalizeEmail(args.email);
-    const isOverLimit = signInLimiter.allow(email) === false;
-    if (isOverLimit) {
-      throw rateLimited('Too many sign-in attempts. Try again in a few minutes.');
-    }
 
     // No-link mode: the address alone is the credential. Only for a private instance: see config.ts.
     const isDirectSignIn = magicLinkRequired() === false;
@@ -203,6 +219,7 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   };
 
   fields.verifyMagicLink.resolve = async (_parent: unknown, args: { token: string }, context: Context) => {
+    throttle(context, AuthFlow.VerifyMagicLink);
     const payload = verifyMagicToken(args.token);
     if (!payload) {
       throw badInput('Invalid or expired magic link');

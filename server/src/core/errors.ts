@@ -26,8 +26,16 @@ const withCode =
 export const badInput = withCode(ErrorCode.BadUserInput);
 /** An operation that is too deep, too aliased or too costly to run. */
 export const tooComplex = withCode(ErrorCode.QueryTooComplex);
-/** Too many attempts inside one window. */
-export const rateLimited = withCode(ErrorCode.TooManyRequests);
+
+/**
+ * Builds the refusal for too many attempts inside one window.
+ *
+ * @param message - Client-readable message.
+ * @param retryAfter - Seconds until the next attempt will be counted.
+ * @returns The error, with `extensions.retryAfter`.
+ */
+export const rateLimited = (message: string, retryAfter: number): GraphQLError =>
+  new GraphQLError(message, { extensions: { code: ErrorCode.TooManyRequests, retryAfter } });
 
 /**
  * Builds the signed-out refusal.

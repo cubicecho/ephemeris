@@ -6,6 +6,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { pushSchema } from 'drizzle-kit/api-postgres';
 import { drizzle } from 'drizzle-orm/pglite';
 import { type ExecutionResult, graphql } from 'graphql';
+import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
 import type { Context } from '../core/context.ts';
 import { createSchema } from '../graphql/build-schema.ts';
 
@@ -40,11 +41,23 @@ export interface TestClient {
   expectError: (query: string, variables?: Record<string, unknown>) => Promise<{ message: string; code: unknown }>;
 }
 
-export function createClient(db: TestDb, userId: string | null): TestClient {
+/** The address test requests come from. */
+export const TEST_IP = '127.0.0.1';
+
+/** What a test client can swap out. */
+export interface ClientDeps {
+  /** The sign-in throttle. Pass one with a small budget to reach the limit quickly. */
+  limiter?: RateLimiter;
+  /** The address requests appear to come from. */
+  ip?: string;
+}
+
+export function createClient(db: TestDb, userId: string | null, deps: ClientDeps = {}): TestClient {
   const { schema } = createSchema(db);
+  const { limiter = createRateLimiter(), ip = TEST_IP } = deps;
 
   const run = async (query: string, variables?: Record<string, unknown>) => {
-    const contextValue: Context = { db, userId };
+    const contextValue: Context = { db, limiter, ip, userId };
     return graphql({ schema, source: query, contextValue, variableValues: variables });
   };
 

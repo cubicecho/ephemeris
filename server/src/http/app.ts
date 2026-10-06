@@ -1,5 +1,7 @@
 import type { DB } from '@cubicecho/ephemeris-db';
 import express, { type Express } from 'express';
+import { createRateLimiter, type RateLimiter } from '../auth/rate-limit.ts';
+import { trustProxy } from '../core/config.ts';
 import { HTTP_DEFAULTS } from '../core/defaults.ts';
 import { HttpStatus } from '../core/wire.ts';
 import { createGraphQLHandler } from '../graphql/handler.ts';
@@ -11,6 +13,12 @@ const HEALTH_PATH = '/healthz';
 /** What the app talks to. Tests pass PGlite. */
 export interface AppDeps {
   db: DB;
+  /**
+   * The sign-in throttle. Tests pass one with a small budget.
+   *
+   * @defaultValue `createRateLimiter()`
+   */
+  limiter?: RateLimiter;
   /** The built SPA's directory. Left out in tests. */
   staticDir?: string;
 }
@@ -21,9 +29,11 @@ export interface AppDeps {
  * @param deps - What the app talks to.
  * @returns The app, not listening.
  */
-export function createApp({ db, staticDir }: AppDeps): Express {
+export function createApp({ db, limiter = createRateLimiter(), staticDir }: AppDeps): Express {
   const app = express();
-  const graphql = createGraphQLHandler({ db });
+  // Decides whose address `req.ip` is, which the sign-in throttle counts by.
+  app.set('trust proxy', trustProxy());
+  const graphql = createGraphQLHandler({ db, limiter });
 
   // Yoga reads a body Express already parsed, so this is where the size cap goes. Over it: 413.
   app.use(graphql.graphqlEndpoint, express.json({ limit: HTTP_DEFAULTS.bodyLimit }));

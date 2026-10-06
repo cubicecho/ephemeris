@@ -10,6 +10,8 @@ export interface HttpSettings {
   drainSeconds: number;
   /** How long shutdown may take in all before a hard exit. Keep it under Docker's 10 s. */
   shutdownDeadlineSeconds: number;
+  /** Express's `trust proxy`: false with nothing in front, a hop count or a subnet list behind a proxy. */
+  trustProxy: boolean | number | string;
 }
 
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
@@ -17,6 +19,7 @@ export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
   bodyLimit: '1mb',
   drainSeconds: 5,
   shutdownDeadlineSeconds: 8,
+  trustProxy: false,
 });
 
 /** The sign-in throttle. */
@@ -25,11 +28,14 @@ export interface RateLimitSettings {
   maxAttempts: number;
   /** How long an attempt counts against its key. */
   windowMinutes: number;
+  /** How many keys the limiter holds before it drops the stale ones. */
+  sweepAtKeys: number;
 }
 
 export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
   maxAttempts: 5,
   windowMinutes: 15,
+  sweepAtKeys: 10_000,
 });
 
 /** Sign-in and credential settings. */

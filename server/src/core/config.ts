@@ -9,6 +9,11 @@ const TRUTHY = ['1', 'true', 'yes'];
 const FALSY = ['0', 'false', 'no'];
 const NODE_ENV_PRODUCTION = 'production';
 const UNKNOWN_VERSION = 'unknown';
+/** The two words `TRUST_PROXY` takes besides a hop count or a subnet list. */
+const TRUST_PROXY_OFF = 'false';
+const TRUST_PROXY_ON = 'true';
+/** A whole number of proxy hops. */
+const HOP_COUNT = /^\d+$/;
 
 /** What tokens are signed with outside production when `JWT_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production';
@@ -159,3 +164,25 @@ const VERSION = readVersion();
  * @returns The released version, or "unknown".
  */
 export const version = (): string => VERSION;
+
+/**
+ * What Express trusts `X-Forwarded-For` from, which decides whose address `req.ip` is.
+ *
+ * @returns `TRUST_PROXY` as Express reads it: a boolean, a hop count or a subnet list. Unset, `HTTP_DEFAULTS.trustProxy`.
+ *
+ * @remarks
+ * The sign-in throttle counts by `req.ip`. Wrong, every client shares the proxy's address and is locked out together.
+ */
+export function trustProxy(): boolean | number | string {
+  const value = (process.env.TRUST_PROXY ?? '').trim();
+  if (value === '') {
+    return HTTP_DEFAULTS.trustProxy;
+  }
+  if (value === TRUST_PROXY_OFF) {
+    return false;
+  }
+  if (value === TRUST_PROXY_ON) {
+    return true;
+  }
+  return HOP_COUNT.test(value) ? Number(value) : value;
+}
