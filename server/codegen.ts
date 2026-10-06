@@ -11,6 +11,9 @@ const config: CodegenConfig = {
       plugins: ['typescript', 'typescript-resolvers'],
       config: {
         inputMaybeValue: 'T | undefined',
+        // Node strips types and nothing else: no `enum`, and type imports marked as such.
+        enumsAsTypes: true,
+        useTypeImports: true,
         contextType: '../src/context.ts#Context',
         scalars: {
           UUID: 'string',

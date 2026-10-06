@@ -1,10 +1,5 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "codegen.ts"],
-  "exclude": ["node_modules", "__generated__"]
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src", "__generated__", "codegen.ts"]
 }

@@ -17,6 +17,8 @@ const config: CodegenConfig = {
           field: true,
         },
         useTypeImports: true,
+        // `enum` is not erasable syntax; a union of literals is.
+        enumsAsTypes: true,
         defaultScalarType: 'unknown',
         skipTypeNameForRoot: true,
         scalars: {
