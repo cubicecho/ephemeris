@@ -1,0 +1,92 @@
+name: Release
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Publish images for this version without cutting a release (for example 1.2.3).
+        required: true
+concurrency:
+  group: release
+  cancel-in-progress: false
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  packages: write
+env:
+  IMAGE: ghcr.io/cubicecho/ephemeris
+  DOCKERHUB_IMAGE: cubicecho/ephemeris
+jobs:
+  release:
+    # After a green CI run on main, or by hand.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # semantic-release reads every commit since the last tag.
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with: { node-version: 26 }
+      - name: Install semantic-release
+        if: github.event_name != 'workflow_dispatch'
+        run: npm install --global semantic-release @semantic-release/changelog @semantic-release/git
+      # A dry run first, to learn whether these commits cut a version at all.
+      - name: Find the next version
+        id: next
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(npx semantic-release --dry-run | sed -n 's/.*The next release version is \([0-9][^ ]*\).*/\1/p')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Cut the release
+        if: github.event_name != 'workflow_dispatch' && steps.next.outputs.version != ''
+        run: npx semantic-release
+      - name: Choose the image tags
+        id: tags
+        if: steps.next.outputs.version != ''
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "$IMAGE:latest"
+            echo "$IMAGE:${{ steps.next.outputs.version }}"
+            # Docker Hub is optional: without its secrets these tags are skipped, not failed.
+            if [ -n "$DOCKERHUB_USERNAME" ]; then
+              echo "$DOCKERHUB_IMAGE:latest"
+              echo "$DOCKERHUB_IMAGE:${{ steps.next.outputs.version }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+        if: steps.next.outputs.version != ''
+      - uses: docker/login-action@v4
+        if: steps.next.outputs.version != ''
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/login-action@v4
+        if: steps.next.outputs.version != '' && env.DOCKERHUB_USERNAME != ''
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+      # semantic-release has stamped the version into this checkout's package.json, which /healthz reports.
+      - uses: docker/build-push-action@v7
+        if: steps.next.outputs.version != ''
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
