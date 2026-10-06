@@ -38,7 +38,10 @@
   },
   "overrides": {
     "graphql": "16.13.2",
-    "drizzle-orm": "1.0.0-rc.4"
+    "drizzle-orm": "1.0.0-rc.4",
+    "@0no-co/graphqlsp": {
+      "typescript": "$typescript"
+    }
   },
   "devDependencies": {
     "@0no-co/graphqlsp": "^1.15.2",
