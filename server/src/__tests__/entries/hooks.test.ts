@@ -19,6 +19,10 @@ const SAVE = `
 `;
 
 const LIST = `query { entries(orderBy: { entryDate: { direction: desc, priority: 1 } }) { entryDate body mood } }`;
+const UPDATE_BY_ID = `
+  mutation($id: UUID!, $body: String!) { updateEntries(where: { id: { eq: $id } }, set: { body: $body }) { id } }
+`;
+const DELETE_BY_ID = `mutation($id: UUID!) { deleteEntries(where: { id: { eq: $id } }) { id } }`;
 const DAY = `query($date: String!) { entry(where: { entryDate: { eq: $date } }) { id body mood } }`;
 
 let db: TestDb;
@@ -78,6 +82,19 @@ describe('one writer cannot reach another', () => {
 
     expect((await mine.expectOk(LIST)).entries).toEqual([]);
     expect((await mine.expectOk(DAY, { date: '2026-09-15' })).entry).toBeNull();
+  });
+
+  it("leaves another writer's day alone on update and delete", async () => {
+    const others = (await theirs.expectOk(SAVE, { date: '2026-09-15', body: 'Theirs.', mood: 1 })).upsertEntry;
+
+    // Naming the row by id is as far as a caller can reach: scope is ANDed into the WHERE.
+    const updated = await mine.expectOk(UPDATE_BY_ID, { id: others.id, body: 'Overwritten.' });
+    expect(updated.updateEntries).toEqual([]);
+    const deleted = await mine.expectOk(DELETE_BY_ID, { id: others.id });
+    expect(deleted.deleteEntries).toEqual([]);
+
+    const [row] = await db.select().from(dbSchema.entries);
+    expect(row).toMatchObject({ id: others.id, body: 'Theirs.' });
   });
 
   it('refuses to answer at all without a caller', async () => {
