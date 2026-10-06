@@ -56,4 +56,6 @@ export const features: SchemaFeatures = {
   // case update" — and the client cannot tell those apart without a round trip
   // it would then race against itself.
   upsert: generatedWritesAllowed,
+  // The default, but stated. A nested write runs only the parent's onWrite hooks, so the child's validation is skipped.
+  nestedWrites: false,
 };

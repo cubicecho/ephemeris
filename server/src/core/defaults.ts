@@ -63,3 +63,28 @@ export interface EntrySettings {
 export const ENTRY_DEFAULTS: Readonly<EntrySettings> = Object.freeze({
   maxBodyLength: 65_536,
 });
+
+/** The bounds on one GraphQL operation: how many rows a list returns, and how deep and costly a document may be. */
+export interface OperationLimitSettings {
+  /** Rows a list returns when the request passes no `limit`. */
+  defaultPageSize: number;
+  /** The largest `limit` a request may pass. Above it: DRIZZLE_LIMIT_EXCEEDED. */
+  maxPageSize: number;
+  /** How deeply selections may nest. */
+  maxDepth: number;
+  /** How many aliases one document may use. Each is another copy of a field's cost. */
+  maxAliases: number;
+  /** The most one operation may cost. A list costs its page size times the cost of one row. */
+  maxCost: number;
+  /** What a field with no cost hint costs. */
+  defaultFieldCost: number;
+}
+
+export const OPERATION_LIMIT_DEFAULTS: Readonly<OperationLimitSettings> = Object.freeze({
+  defaultPageSize: 50,
+  maxPageSize: 500,
+  maxDepth: 8,
+  maxAliases: 15,
+  maxCost: 10_000,
+  defaultFieldCost: 1,
+});

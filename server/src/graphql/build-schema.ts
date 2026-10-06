@@ -1,5 +1,7 @@
-import { buildSchema } from '@vantreeseba/drizzle-graphql';
+import { type AnyDrizzleDB, buildSchema, type GeneratedEntities } from '@vantreeseba/drizzle-graphql';
+import type { GraphQLSchema } from 'graphql';
 import { applyAuthExtension } from '../auth/resolvers.ts';
+import { OPERATION_LIMIT_DEFAULTS } from '../core/defaults.ts';
 import { entryWriteHooks } from '../entries/hooks.ts';
 import { contextValues, features, scope } from './tenancy.ts';
 
@@ -11,13 +13,23 @@ import { contextValues, features, scope } from './tenancy.ts';
 // Kept separate from schema.ts, which binds it to the real database, so a test
 // can build the same schema against a throwaway one.
 
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver
-type AnyDb = any;
+/** Any Drizzle client: postgres-js in production, PGlite in tests. */
+type AnyDb = AnyDrizzleDB<Record<string, unknown>>;
 
-// The return type is inferred rather than written out: `GeneratedEntities` is
-// keyed by the naming config, so spelling it here would mean restating
-// `typeNameMapper` in a second place that could disagree with the first.
-export function createSchema(db: AnyDb) {
+/** What `createSchema` hands back. */
+export interface BuiltSchema {
+  schema: GraphQLSchema;
+  /** drizzle-graphql's generated types and resolvers, for hand-built roots. */
+  entities: GeneratedEntities<AnyDb>;
+}
+
+/**
+ * Builds the served schema. Kept apart from schema.ts so tests can bind a throwaway db.
+ *
+ * @param db - Drizzle client.
+ * @returns The schema and drizzle-graphql's generated entities.
+ */
+export function createSchema(db: AnyDb): BuiltSchema {
   const { schema: drizzleSchema, entities } = buildSchema(db, {
     prefixes: {
       insert: 'create',
@@ -32,6 +44,13 @@ export function createSchema(db: AnyDb) {
     contextValues,
     features,
     onWrite: { ...entryWriteHooks },
+    // Every list, root or relation, gets a page size.
+    limits: {
+      defaultLimit: OPERATION_LIMIT_DEFAULTS.defaultPageSize,
+      maxLimit: OPERATION_LIMIT_DEFAULTS.maxPageSize,
+    },
+    // Publishes each field's cost for useOperationLimits. On by default, and stated so nobody turns it off.
+    complexity: true,
   });
 
   const schema = applyAuthExtension(drizzleSchema);

@@ -24,6 +24,8 @@ const withCode =
 
 /** Arguments the caller can fix. */
 export const badInput = withCode(ErrorCode.BadUserInput);
+/** An operation that is too deep, too aliased or too costly to run. */
+export const tooComplex = withCode(ErrorCode.QueryTooComplex);
 /** Too many attempts inside one window. */
 export const rateLimited = withCode(ErrorCode.TooManyRequests);
 
