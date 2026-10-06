@@ -1,8 +1,8 @@
 import * as dbSchema from '@cubicecho/ephemeris-db/schema';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ENTRY_DEFAULTS } from '../core/defaults.ts';
-import { ErrorCode } from '../core/errors.ts';
-import { createClient, createTestDb, createUser, type TestClient, type TestDb } from './helpers.ts';
+import { ENTRY_DEFAULTS } from '../../core/defaults.ts';
+import { ErrorCode } from '../../core/errors.ts';
+import { createClient, createTestDb, createUser, type TestClient, type TestDb } from '../helpers.ts';
 
 // One entry per person per day is the whole data model, and `upsertEntry` is the
 // only thing that maintains it. These are the ways that could go wrong: a second
