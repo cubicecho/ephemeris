@@ -1,33 +1,36 @@
+import { DATABASE_DEFAULTS } from './defaults.ts';
 import { relations } from './relations.ts';
 import * as schema from './schema.ts';
 import { requiresSsl } from './ssl.ts';
 
-// Ephemeris is Postgres-only. There is no embedded fallback: a missing
-// DATABASE_URL is a misconfiguration, and silently writing somewhere else would
-// hide it until the data mattered.
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
+// Postgres-only, with no embedded fallback: writing somewhere else would hide a missing URL until the data mattered.
+const url = process.env.DATABASE_URL ?? '';
+if (url === '') {
   throw new Error('DATABASE_URL is required. Copy .env.example to .env and run `npm run db:up` for a local Postgres.');
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
-
-// drizzle-orm 1.0 takes the tables through the relations config built by
-// defineRelations, and that config is also what drizzle-graphql reads.
+const mustForceSsl = isProduction && requiresSsl(url);
 const { drizzle } = await import('drizzle-orm/postgres-js');
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 rc overload resolution
-const connection: any = {
-  url: DATABASE_URL,
-  ...(isProduction && requiresSsl(DATABASE_URL) ? { ssl: 'require' } : {}),
-  // Every boot runs `CREATE SCHEMA IF NOT EXISTS "drizzle"`, and Postgres answers
-  // with a NOTICE when it already does. Printing it makes a healthy restart look
-  // like a failure, so notices are dropped; real errors still throw.
-  onnotice: () => {},
-};
 
-// biome-ignore lint/suspicious/noExplicitAny: db type varies by driver at runtime; callers cast as needed
-export type DB = any;
-export const db: DB = drizzle({ connection, relations });
+/** The app's Drizzle client. Doesn't connect until the first query. */
+export const db = drizzle({
+  connection: {
+    url,
+    ...(mustForceSsl ? { ssl: 'require' } : {}),
+    // Idempotent migrations emit a NOTICE on every boot, which reads like a failure.
+    onnotice: () => {},
+  },
+  relations,
+});
+export type DB = typeof db;
+
+/**
+ * Closes the pool at shutdown, after the server has drained.
+ *
+ * @returns Resolves once every connection is closed. Queries still running are cancelled after `closeTimeoutSeconds`.
+ */
+export const closeDatabase = (): Promise<void> => db.$client.end({ timeout: DATABASE_DEFAULTS.closeTimeoutSeconds });
 
 export * from './schema.ts';
 export { relations, schema };
