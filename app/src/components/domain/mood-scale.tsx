@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
  * who can see it and knows the ramp can read. Where there is room — the cards —
  * it is printed; in the rail it is the swatch's title and an `sr-only` span, so
  * the announcement is "Good", never "swatch". `label` is which of the two.
+ * `silent` is for the one caller that says the word itself: a cubeui rail row
+ * puts it in the row's name, and a second copy here would be read twice.
  *
  * A day with no mood draws nothing rather than a grey dot: "not recorded" is an
  * absence, and a placeholder in the row is exactly the reading — a middling 3 —
@@ -21,10 +23,12 @@ import { cn } from '@/lib/utils';
 export function MoodDot({
   mood,
   label = false,
+  silent = false,
   className,
 }: {
   mood: number | null | undefined;
   label?: boolean;
+  silent?: boolean;
   className?: string;
 }) {
   const text = moodLabel(mood);
@@ -35,8 +39,8 @@ export function MoodDot({
     <span className={cn('inline-flex shrink-0 items-center gap-1.5', className)}>
       <span aria-hidden title={label ? undefined : text} className={cn('size-2.5 rounded-full', swatch)} />
       {label ? (
-        <span className="font-normal text-muted-foreground">{text}</span>
-      ) : (
+        <span className="font-normal text-foreground/60">{text}</span>
+      ) : silent ? null : (
         <span className="sr-only">{text}</span>
       )}
     </span>
@@ -47,10 +51,11 @@ export function MoodDot({
  * The mood picker: the five steps laid out as the ramp they are, red to green,
  * plus the sixth option of not saying.
  *
- * It is still a Radix `RadioGroup` — arrow keys, roving tabindex, one tab stop —
+ * It is still cubeui's `RadioGroup` — arrow keys, roving tabindex, one tab stop —
  * because a row of swatches is a radio group that has been painted, not a new
- * control. Each swatch keeps a real `<label htmlFor>`, so the word is the
- * button's accessible name and is also a second place to click it.
+ * control. Each swatch is the primitive's bare item with a real
+ * `<label htmlFor>` under it, so the word is the button's accessible name and is
+ * also a second place to click it.
  *
  * **Every step stays at full colour, and only the ring says which one is
  * chosen.** Dimming the other four is the obvious way to draw a selection and it
@@ -59,29 +64,29 @@ export function MoodDot({
  * and 2 land on the same brown, which is a spectrum that no longer runs from
  * anything to anything.
  */
-export function MoodSpectrum({ className, ...props }: ComponentProps<typeof RadioGroup>) {
+export function MoodSpectrum(props: ComponentProps<typeof RadioGroup>) {
   return (
-    <RadioGroup className={cn('gap-3', className)} {...props}>
+    <RadioGroup {...props}>
       <div className="flex items-start gap-1">
         {MOODS.map((option) => (
           <div key={option.value} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
             <RadioGroupItem
               id={`mood-${option.value}`}
               value={String(option.value)}
-              title={option.label}
+              hint={option.label}
               className={cn(
-                // `aspect-auto`/`w-full` undo the 16px circle the primitive is
-                // by default; `flex` centres the checked dot, which is placed
-                // against the indicator and would otherwise ride the top edge.
-                'peer flex aspect-auto h-9 w-full shrink items-center justify-center rounded-md border-0 transition-all',
+                // A bare item is a 16px circle; this makes it the swatch instead.
+                // The circle inside is hidden because on a coloured field it is
+                // a second, weaker mark for what the ring already says.
+                'peer h-9 w-full shrink rounded-md transition-all [&>div]:hidden',
                 option.swatch,
                 'hover:brightness-95 dark:hover:brightness-110',
-                'data-[state=checked]:ring-2 data-[state=checked]:ring-ring data-[state=checked]:ring-offset-2 data-[state=checked]:ring-offset-background',
+                'aria-checked:ring-2 aria-checked:ring-ring aria-checked:ring-offset-2 aria-checked:ring-offset-background',
               )}
             />
             <Label
               htmlFor={`mood-${option.value}`}
-              className="truncate font-normal text-muted-foreground text-xs peer-data-[state=checked]:font-medium peer-data-[state=checked]:text-foreground"
+              className="truncate font-normal text-foreground/60 text-xs peer-aria-checked:font-medium peer-aria-checked:text-foreground"
             >
               {option.label}
             </Label>
@@ -89,12 +94,7 @@ export function MoodSpectrum({ className, ...props }: ComponentProps<typeof Radi
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
-        <RadioGroupItem id="mood-none" value={NO_MOOD} />
-        <Label htmlFor="mood-none" className="font-normal text-muted-foreground">
-          Not recorded
-        </Label>
-      </div>
+      <RadioGroupItem value={NO_MOOD} label="Not recorded" />
     </RadioGroup>
   );
 }

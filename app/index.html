@@ -5,22 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Ephemeris</title>
-    <script>
-      // Paint the theme before the first frame, so a dark-theme reader does not
-      // get a white flash while the bundle loads. Deliberately inline, blocking
-      // and duplicated from src/lib/theme.ts — a module import would be too late,
-      // and the storage key is the contract between the two.
-      try {
-        var pref = window.localStorage.getItem('ephemeris_theme') || 'system';
-        var dark =
-          pref === 'dark' ||
-          (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        if (dark) document.documentElement.classList.add('dark');
-      } catch (e) {
-        // No storage (private window, blocked site data) — light, and the app
-        // will sort itself out once it mounts.
-      }
-    </script>
+    <!-- Paints the theme before the first frame, so a dark-theme reader does not
+         get a white flash while the bundle loads. It is cubeui's
+         THEME_PRE_PAINT_SCRIPT verbatim — inline and blocking because a module
+         import would be too late — and src/lib/theme.test.ts fails if the two
+         drift apart. -->
+    <script>(function(){try{var s=localStorage,p=s.getItem("cubeui-theme"),q=s.getItem("cubeui-palette"),k=["monokai"].indexOf(q)>=0,d=k||p==="dark"||(p!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches),e=document.documentElement,c=e.classList;c.toggle("dark",d);c.toggle("light",!k&&p==="light");if(["monokai"].indexOf(q)>=0)e.setAttribute("data-palette",q)}catch(e){}})();</script>
   </head>
   <body>
     <div id="root"></div>

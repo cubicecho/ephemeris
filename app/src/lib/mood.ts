@@ -7,17 +7,19 @@
  * colours are `--mood-*` tokens from `index.css` rather than palette utilities,
  * so one ramp serves both themes.
  *
- * **`dark:` repeats the class on purpose.** The vendored `RadioGroupItem` ships
- * a `dark:bg-input/30`, and `tailwind-merge` only resolves a conflict between
- * two classes under the *same* variant — an unprefixed `bg-mood-3` loses to it
- * the moment the page goes dark, silently and only in one theme.
+ * **`focus-visible:` repeats the class on purpose.** cubeui's bare
+ * `RadioGroupItem` ships a `focus-visible:bg-hover`, and `tailwind-merge` only
+ * resolves a conflict between two classes under the *same* variant — an
+ * unprefixed `bg-mood-3` loses to it the moment the swatch takes keyboard focus,
+ * which in a radio group is the chosen one: the step you picked would be the
+ * one step drawn in the wrong colour.
  */
 export const MOODS = [
-  { value: 1, label: 'Rough', swatch: 'bg-mood-1 dark:bg-mood-1' },
-  { value: 2, label: 'Low', swatch: 'bg-mood-2 dark:bg-mood-2' },
-  { value: 3, label: 'Even', swatch: 'bg-mood-3 dark:bg-mood-3' },
-  { value: 4, label: 'Good', swatch: 'bg-mood-4 dark:bg-mood-4' },
-  { value: 5, label: 'Great', swatch: 'bg-mood-5 dark:bg-mood-5' },
+  { value: 1, label: 'Rough', swatch: 'bg-mood-1 focus-visible:bg-mood-1' },
+  { value: 2, label: 'Low', swatch: 'bg-mood-2 focus-visible:bg-mood-2' },
+  { value: 3, label: 'Even', swatch: 'bg-mood-3 focus-visible:bg-mood-3' },
+  { value: 4, label: 'Good', swatch: 'bg-mood-4 focus-visible:bg-mood-4' },
+  { value: 5, label: 'Great', swatch: 'bg-mood-5 focus-visible:bg-mood-5' },
 ] as const;
 
 /** The radio value for "no mood recorded". A journal entry may be written without one. */

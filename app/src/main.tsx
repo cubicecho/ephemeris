@@ -1,13 +1,12 @@
 import { ApolloProvider } from '@apollo/client/react';
-import { StrictMode, useEffect } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AppLayout } from '@/components/layouts/app-layout';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { useThemePreference } from '@/components/ui/theme-preference';
 import { apolloClient } from '@/lib/apollo';
 import { getToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
-import { syncTheme } from '@/lib/theme';
 import { JournalRoute } from '@/routes/journal';
 import { LoginPage } from '@/routes/login';
 import { VerifyPage } from '@/routes/verify';
@@ -25,11 +24,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 /**
  * index.html has already painted the theme by now; this is what keeps it right
- * afterwards. While the preference is `system`, flipping the OS between light
- * and dark repaints the app without a reload.
+ * afterwards. cubeui's hook owns the preference — the storage key, the class on
+ * <html> — and mounting it once at the root is what makes `system` follow the OS
+ * without a reload, on the login page as much as behind it.
  */
 function ThemeSync() {
-  useEffect(syncTheme, []);
+  useThemePreference();
   return null;
 }
 
@@ -45,24 +45,22 @@ function ThemeSync() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ApolloProvider client={apolloClient}>
-      <TooltipProvider>
-        <ThemeSync />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/verify" element={<VerifyPage />} />
-            <Route path="/" element={<Navigate to={`/${todayIso()}`} replace />} />
-            <Route
-              path="/:date"
-              element={
-                <RequireAuth>
-                  <JournalRoute />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <ThemeSync />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/verify" element={<VerifyPage />} />
+          <Route path="/" element={<Navigate to={`/${todayIso()}`} replace />} />
+          <Route
+            path="/:date"
+            element={
+              <RequireAuth>
+                <JournalRoute />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
     </ApolloProvider>
   </StrictMode>,
 );

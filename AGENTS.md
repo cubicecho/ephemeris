@@ -32,10 +32,10 @@ ephemeris/
 │   └── src/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
-│       │   ├── ui/          # shadcn/ui primitives — vendored, not linted
-│       │   ├── layouts/     # app-layout: the sidebar + header chrome
-│       │   ├── domain/      # recent-days, mood-scale, theme-select
-│       │   └── *.tsx        # cubeui shells (PageHeader, CardLayout, QueryState, …)
+│       │   ├── ui/          # shadcn/ui + cubeui primitives — vendored, not linted
+│       │   ├── layouts/     # app-layout (the SidebarLayout chrome), rail-link
+│       │   ├── domain/      # recent-days, mood-scale
+│       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, …)
 │       ├── routes/          # login, verify, journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
 │       └── main.tsx         # Providers + the router
@@ -139,7 +139,8 @@ caller who sent `6` is told the scale rather than handed `violates check
 constraint`. Widening the scale means all three — and a fourth, now that the
 scale is drawn as a colour ramp rather than a number: `--mood-1`..`--mood-5` in
 `app/src/index.css`, defined once per theme and exposed to Tailwind through
-`@theme inline`. A step with no token draws nothing at all.
+`@theme inline`. They are the only colours that file defines; the rest of the
+palette is cubeui's, imported from `app/cubeui-tokens.css`. A step with no token draws nothing at all.
 
 **`mood` is `integer`, not the `smallint` the range would justify.**
 drizzle-graphql maps `PgInteger` to `Int` and lets `smallint` fall through to
@@ -150,9 +151,10 @@ drizzle-graphql maps `PgInteger` to `Int` and lets `smallint` fall through to
 `components/domain/mood-scale.tsx` is the only thing that draws either —
 `MoodDot` for a recorded day in the rail and the cards, `MoodSpectrum` for the
 picker. Two things there are load-bearing. The swatch class repeats itself under
-`dark:` because the vendored `RadioGroupItem` ships a `dark:bg-input/30` and
-`tailwind-merge` only resolves a conflict within one variant, so an unprefixed
-`bg-mood-3` loses in exactly one theme. And every step of the picker stays at
+`focus-visible:` because cubeui's bare `RadioGroupItem` ships a
+`focus-visible:bg-hover` and `tailwind-merge` only resolves a conflict within one
+variant, so an unprefixed `bg-mood-3` loses its colour the moment the step takes
+keyboard focus. And every step of the picker stays at
 full colour, with the ring alone marking the choice: dimming the other four
 washes the ramp to pastel on the light background and to mud on the dark one,
 where steps 1 and 2 become the same brown.
@@ -221,23 +223,22 @@ Tracked at https://github.com/cubicecho/drizzle-graphql/issues/174; if that
 lands, revisit this mapping and the `$date: String!` variables in
 `routes/journal.tsx` together.
 
-**The theme is a device preference, not an account setting.** `app/src/lib/theme.ts`
-owns it: `system | light | dark` in `localStorage` under `ephemeris_theme`,
-applied by putting `.dark` on `<html>` — which is what `@custom-variant dark
-(&:is(.dark *))` in `index.css` is keyed on. It never touches the API, because a
-signed-out login page has a theme too, and because the same person wants dark on
-a laptop at night and light on a desk monitor. **`index.html` duplicates the key
-and the rule in a blocking inline script**, deliberately: a module import runs
-after first paint, which is a white flash for a dark-theme reader. The two copies
-must agree. Every storage access is wrapped — `localStorage` *throws* in a
-private window with site data blocked, and a theme is never worth a blank page.
+**The theme is a device preference, not an account setting.** cubeui owns it:
+`useThemePreference()` (called once, in `ThemeSync` in `main.tsx`) keeps
+`system | light | dark` in `localStorage` under `cubeui-theme` and applies it by
+putting `.dark` on `<html>` — which is what `@custom-variant dark (&:is(.dark *))`
+in `index.css` is keyed on. It never touches the API, because a signed-out login
+page has a theme too, and because the same person wants dark on a laptop at
+night and light on a desk monitor. **`index.html` carries cubeui's
+`THEME_PRE_PAINT_SCRIPT` verbatim in a blocking inline script**, deliberately: a
+module import runs after first paint, which is a white flash for a dark-theme
+reader. The two copies must agree, and `lib/theme.test.ts` fails when a registry
+update changes one without the other.
 
-**cubeui ships no theme component** (`PageLayout` says in as many words that the
-theme toggle is not its job), so the control is `ThemeSelect`, a cubeui
-`OptionSelect` over the three values. It lives in the sidebar footer beside sign
-out, which is where the mcp-* apps put theirs, and in the `footer` slot of the
-login card so that it works signed out. Icon *and* word — three states cannot be
-read off one icon.
+**The control is cubeui's `ThemePicker`, in its `compact` variant** — a segmented
+radio group named "Theme". It lives in the sidebar footer beside sign out, which
+is where the mcp-* apps put theirs, in the bar at the widths with no rail, and in
+the `footerSlot` of the login card so that it works signed out.
 
 **`vitest.setup.ts` shims `localStorage`.** Node 24 defines a `localStorage`
 global of its own which is inert without `--localstorage-file` and which shadows
@@ -246,17 +247,24 @@ the one jsdom builds, so in the `dom` project `window.localStorage` is
 storage-unavailable branch. Also note the two Vitest projects: `app/src/lib/**/*.test.ts`
 runs under **node**, so a lib test that needs a DOM must be named `.test.tsx`.
 
-**The chrome matches the mcp-* apps, deliberately.** `components/layouts/app-layout.tsx`
-is the same shell as `mcp-router`, `mcp-skills-manager` and `mcp-zeromem`: a
-`w-56` sidebar on `bg-sidebar` with a `border-r`, an `h-14` bordered header with
-a compact nav on the left and a status line on the right, and a
-`flex-1 overflow-auto p-4 md:p-6` body. `index.css` carries the same tokens in
-the same order, including the `--sidebar-*` set, and nothing here overrides the
-body font — these are meant to read as one set of tools. A page inside it is a
-`flex max-w-2xl flex-col gap-6` column, which is what those apps' prose pages are.
+**The chrome is cubeui's, not ours.** `components/layouts/app-layout.tsx` fills
+`SidebarLayout` and `Sidebar` and draws nothing of its own, so it reads as one
+set of tools with `mcp-router`, `mcp-skills-manager` and `mcp-zeromem`. Nothing
+here overrides the palette or the body font. A page inside it is a
+`PageLayout width="prose"`.
+
+**`SidebarLayout` draws its bar only below `sidebarHideBelow`.** At `md` and up
+there is a rail and no header at all, so anything the bar says has to be said in
+the rail too — which is why the "N of the last 30 days written" count is both
+the bar's `status` and the heading action of the rail's Recent section.
+
+**Rail and bar rows are buttons that cubeui renders, so routing is handed in.**
+`layouts/rail-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
+`useLinkClickHandler` and `active` from the location: a real `<a>` that
+middle-clicks and opens in a tab, without a full page load on a plain click.
 
 What differs is only what fills the rail. Those apps have sections; a journal has
-days, so the rail lists the days and `RecentDaysNav`/`RecentDaysList` are the
+days, so the rail lists the days and `RecentDaysSection`/`RecentDaysList` are the
 same thirty rows drawn twice — as rail links, and as cards for the widths with no
 rail. Both read one `RecentEntries` document, so the second costs nothing, and
 **a write has to refetch it as well as `JournalDay`** or the rail goes stale.
@@ -265,19 +273,16 @@ rail. Both read one `RecentEntries` document, so the second costs nothing, and
 one of them — `hidden` is `display: none`, so the other is out of the
 accessibility tree too — but jsdom applies no stylesheet and sees both. Scope
 every query in a shell test to a landmark (`complementary` for the rail, `banner`
-for the header) or it matches twice.
+for the bar) or it matches twice.
 
 **`app/src/components/ui/` is vendored.** Those files come from the shadcn and
 cubeui registries and are kept as published, so `shadcn add` can update them.
 `biome.json` exempts them from two lint rules rather than letting anyone edit
 them into compliance. The cubeui shells one level up (`page-layout.tsx`,
-`query-state.tsx`, …) are the same deal. Both take a **`content` prop, never
-children**.
-
-**The cubeui registry ships primitives that import `cn` from an npm package.**
-After `shadcn add`, run
-`sed -i 's|from "cn"|from "@/lib/utils"|' src/components/ui/*.tsx` and
-`npm pkg delete dependencies.cn`.
+`query-state.tsx`, …) are the same deal. Neither takes children: regions are
+`*Slot` props that take elements (`contentSlot`, `actionSlot`, `footerSlot`), and
+words are plain props (`title`, `description`, `label`, a `Button`'s `content`).
+`npx biome check --write` after a `shadcn add` is formatting, not editing.
 
 ## Where this is going
 
