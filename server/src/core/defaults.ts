@@ -1,0 +1,56 @@
+// Every value someone might tune, as plain data. Nothing here computes, reads the environment or imports.
+
+/** Settings for the HTTP doors and the process behind them. */
+export interface HttpSettings {
+  /** The port to listen on. `PORT` overrides it. */
+  port: number;
+}
+
+export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
+  port: 3005,
+});
+
+/** The sign-in throttle. */
+export interface RateLimitSettings {
+  /** Attempts allowed per key inside one window. */
+  maxAttempts: number;
+  /** How long an attempt counts against its key. */
+  windowMinutes: number;
+}
+
+export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
+  maxAttempts: 5,
+  windowMinutes: 15,
+});
+
+/** Sign-in and credential settings. */
+export interface AuthSettings {
+  /** How long an emailed sign-in link works. Short, because it travels by mail. */
+  magicLinkTtlMinutes: number;
+  /** How long a session token works. Long, because there is no refresh flow and no session table. */
+  sessionTtlDays: number;
+  /** Shortest signing secret production accepts, in characters. `openssl rand -hex 32` gives 64. */
+  minSecretLength: number;
+  /** Whether typing an email signs in, with no link. Unsafe on a public network. `SECURE_LOCAL_NET` overrides it. */
+  secureLocalNet: boolean;
+  /** Whether sign-in needs a magic link followed. `AUTH_MAGIC_LINK` overrides it, and `SECURE_LOCAL_NET` turns it off. */
+  magicLinkRequired: boolean;
+}
+
+export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
+  magicLinkTtlMinutes: 15,
+  sessionTtlDays: 30,
+  minSecretLength: 32,
+  secureLocalNet: false,
+  magicLinkRequired: true,
+});
+
+/** Limits on what an entry may hold. */
+export interface EntrySettings {
+  /** Longest body, in characters: about 10,000 words, which no one writes in a day. `MAX_BODY_CHARS` overrides it. */
+  maxBodyLength: number;
+}
+
+export const ENTRY_DEFAULTS: Readonly<EntrySettings> = Object.freeze({
+  maxBodyLength: 65_536,
+});

@@ -1,7 +1,7 @@
-import type { BuildSchemaConfig, RowScope } from '@vantreeseba/drizzle-graphql';
+import type { ContextValuesConfig, RowScope, SchemaFeatures, ScopeConfig } from '@vantreeseba/drizzle-graphql';
 import { eq } from 'drizzle-orm';
-import { requireAuth } from '../auth/resolvers.ts';
 import type { Context } from '../core/context.ts';
+import { requireAuth } from '../core/errors.ts';
 
 // Multi-tenancy, expressed as drizzle-graphql configuration rather than as
 // resolver wrappers. `scope` is ANDed into the SQL of every read, update and
@@ -14,19 +14,18 @@ import type { Context } from '../core/context.ts';
 // The rule for anyone adding a table: it needs an entry here, or its rows are
 // visible across tenants. __tests__/tenancy.test.ts fails when one is missing.
 
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 table/column type compat
-type AnyTable = any;
+const USERS_TABLE = 'users';
 
 export const USER_OWNED_TABLES = ['entries'] as const;
 
 /** Every table drizzle-graphql will generate fields for. */
-export const ALL_TABLES = ['users', ...USER_OWNED_TABLES] as const;
+export const ALL_TABLES = [USERS_TABLE, ...USER_OWNED_TABLES] as const;
 
-const scopeByUserId: RowScope<Context> = (context, table) => eq((table as AnyTable).userId, requireAuth(context));
+const scopeByUserId: RowScope<Context> = (context, table) => eq(table.userId, requireAuth(context));
 
-export const scope: NonNullable<BuildSchemaConfig['scope']> = {
+export const scope: ScopeConfig<Context> = {
   // A user row is only ever visible to its owner. There is no directory here.
-  users: (context, table) => eq((table as AnyTable).id, requireAuth(context as Context)),
+  [USERS_TABLE]: (context, table) => eq(table.id, requireAuth(context)),
   ...Object.fromEntries(USER_OWNED_TABLES.map((name) => [name, scopeByUserId])),
 };
 
@@ -36,7 +35,7 @@ export const scope: NonNullable<BuildSchemaConfig['scope']> = {
  * merely overwritten — and it is what lets `upsertEntry`'s conflict target name
  * `userId` without a client ever supplying one.
  */
-export const contextValues: NonNullable<BuildSchemaConfig['contextValues']> = Object.fromEntries(
+export const contextValues: ContextValuesConfig<Context> = Object.fromEntries(
   USER_OWNED_TABLES.map((name) => [name, { userId: (context: Context) => requireAuth(context) }]),
 );
 
@@ -45,9 +44,9 @@ export const contextValues: NonNullable<BuildSchemaConfig['contextValues']> = Ob
  * because a sign-in created it, and there is nothing else about a user to edit.
  * Everything `entries` needs is generated CRUD plus the upsert.
  */
-const generatedWritesAllowed = (table: string) => table !== 'users';
+const generatedWritesAllowed = (table: string): boolean => table !== USERS_TABLE;
 
-export const features: NonNullable<BuildSchemaConfig['features']> = {
+export const features: SchemaFeatures = {
   insert: generatedWritesAllowed,
   update: generatedWritesAllowed,
   updateMany: generatedWritesAllowed,

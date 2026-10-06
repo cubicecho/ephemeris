@@ -1,6 +1,6 @@
 import type { BuildSchemaConfig, WriteHookPayload } from '@vantreeseba/drizzle-graphql';
-import { GraphQLError } from 'graphql';
 import { maxBodyChars } from '../core/config.ts';
+import { badInput } from '../core/errors.ts';
 
 // Two things the generated write cannot say for itself. Both are also database
 // constraints — the check on `mood`, and `text` having no length of its own is
@@ -28,10 +28,6 @@ export function writtenRows(args: { values?: Row | Row[]; set?: Row; updates?: A
   return args.set ? [args.set] : [];
 }
 
-function badInput(message: string): never {
-  throw new GraphQLError(message, { extensions: { code: 'BAD_USER_INPUT' } });
-}
-
 /** The mood scale, in one place: the column, this check and the client's buttons all mean 1–5. */
 export const MOOD_MIN = 1;
 export const MOOD_MAX = 5;
@@ -44,11 +40,11 @@ function assertEntryWritable(rows: Row[]): void {
       const mood = Number(row.mood);
       const isOffScale = Number.isInteger(mood) === false || mood < MOOD_MIN || mood > MOOD_MAX;
       if (isOffScale) {
-        badInput(`Mood must be a whole number from ${MOOD_MIN} to ${MOOD_MAX}, or null.`);
+        throw badInput(`Mood must be a whole number from ${MOOD_MIN} to ${MOOD_MAX}, or null.`);
       }
     }
     if (typeof row.body === 'string' && row.body.length > limit) {
-      badInput(`An entry is limited to ${limit.toLocaleString()} characters.`);
+      throw badInput(`An entry is limited to ${limit.toLocaleString()} characters.`);
     }
   }
 }

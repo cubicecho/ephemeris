@@ -1,23 +1,28 @@
+import type { DB } from '@cubicecho/ephemeris-db';
 import * as dbSchema from '@cubicecho/ephemeris-db/schema';
 import { eq } from 'drizzle-orm';
-import { extendSchema, GraphQLError, type GraphQLObjectType, type GraphQLSchema, parse } from 'graphql';
+import { extendSchema, type GraphQLSchema, parse } from 'graphql';
 import jwt from 'jsonwebtoken';
-import { appUrl, magicLinkExposed, magicLinkRequired } from '../core/config.ts';
+import { appUrl, jwtSecret, magicLinkExposed, magicLinkRequired } from '../core/config.ts';
 import type { Context } from '../core/context.ts';
+import { AUTH_DEFAULTS, RATE_LIMIT_DEFAULTS } from '../core/defaults.ts';
+import { badInput, rateLimited } from '../core/errors.ts';
+import { MS_PER_SECOND, SECONDS_PER_MINUTE } from '../core/wire.ts';
+import { objectType } from '../graphql/object-type.ts';
 import { createRateLimiter } from './rate-limit.ts';
 
-const DEV_SECRET = 'dev-secret-change-in-production';
+// requestMagicLink is unauthenticated, so without this anyone who can reach the port can mint magic tokens at will.
+// Per-IP limiting belongs in the reverse proxy, the only thing that reliably knows the client's address.
+const signInLimiter = createRateLimiter(
+  RATE_LIMIT_DEFAULTS.maxAttempts,
+  RATE_LIMIT_DEFAULTS.windowMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND,
+);
 
-/** Read at call time so a test — or a reload — sees the current environment. */
-function jwtSecret(): string {
-  return process.env.JWT_SECRET ?? DEV_SECRET;
-}
-
-// Five sign-in attempts per address per quarter hour. requestMagicLink is
-// unauthenticated, so without this anyone who can reach the port can mint magic
-// tokens at will. Per-IP limiting belongs in the reverse proxy, which is the
-// only thing that reliably knows the client's address.
-const signInLimiter = createRateLimiter(5, 15 * 60 * 1000);
+const MUTATION_TYPE = 'Mutation';
+/** The claim a session token carries. */
+const USER_ID_CLAIM = 'userId';
+/** The claim a magic-link token carries. */
+const EMAIL_CLAIM = 'email';
 
 const AUTH_SDL = parse(`
   """
@@ -44,37 +49,78 @@ const AUTH_SDL = parse(`
   }
 `);
 
-/** A session token. Long-lived: there is no refresh flow and no session table. */
+/**
+ * Signs a session token. Long-lived: there is no refresh flow and no session table.
+ *
+ * @param userId - Who the session belongs to.
+ * @returns The token, valid for `AUTH_DEFAULTS.sessionTtlDays`.
+ */
 export function signToken(userId: string): string {
-  return jwt.sign({ userId }, jwtSecret(), { expiresIn: '30d' });
+  return jwt.sign({ [USER_ID_CLAIM]: userId }, jwtSecret(), { expiresIn: `${AUTH_DEFAULTS.sessionTtlDays}d` });
 }
 
-/** A single-use-in-practice sign-in token, short-lived because it travels by mail. */
+/**
+ * Signs a sign-in token. Short-lived, because it travels by mail.
+ *
+ * @param email - The address the link is for.
+ * @returns The token, valid for `AUTH_DEFAULTS.magicLinkTtlMinutes`.
+ */
 export function signMagicToken(email: string): string {
-  return jwt.sign({ email }, jwtSecret(), { expiresIn: '15m' });
+  return jwt.sign({ [EMAIL_CLAIM]: email }, jwtSecret(), { expiresIn: `${AUTH_DEFAULTS.magicLinkTtlMinutes}m` });
 }
 
+/**
+ * Verifies a token and reads one string claim out of it.
+ *
+ * @param token - The signed token.
+ * @param name - The claim to read.
+ * @returns The claim, or null when the token is forged, expired, or carries no such non-empty string.
+ */
+function readClaim(token: string, name: string): string | null {
+  try {
+    const payload = jwt.verify(token, jwtSecret());
+    if (typeof payload === 'string') {
+      return null;
+    }
+    const value: unknown = payload[name];
+    const isUsable = typeof value === 'string' && value !== '';
+    return isUsable ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies a session token.
+ *
+ * @param token - The signed token.
+ * @returns Who it belongs to, or null when it is not a valid session token.
+ */
 export function verifyToken(token: string): { userId: string } | null {
-  try {
-    return jwt.verify(token, jwtSecret()) as { userId: string };
-  } catch {
-    return null;
-  }
+  const userId = readClaim(token, USER_ID_CLAIM);
+  return userId === null ? null : { userId };
 }
 
+/**
+ * Verifies a magic-link token.
+ *
+ * @param token - The signed token.
+ * @returns The address it was issued for, or null when it is not a valid magic-link token.
+ */
 export function verifyMagicToken(token: string): { email: string } | null {
-  try {
-    const payload = jwt.verify(token, jwtSecret()) as { email?: string };
-    return payload.email ? { email: payload.email } : null;
-  } catch {
-    return null;
-  }
+  const email = readClaim(token, EMAIL_CLAIM);
+  return email === null ? null : { email };
 }
 
 /** What an `Authorization` header starts with when it carries a session token. */
 const BEARER_PREFIX = 'Bearer ';
 
-/** Read the authenticated userId from a request's Bearer token, if any. */
+/**
+ * Reads the signed-in user's id from a request's Bearer token.
+ *
+ * @param req - Anything with the request's headers.
+ * @returns The user's id, or null when there is no valid session token.
+ */
 export function extractUserId(req: { headers: { authorization?: string } }): string | null {
   const header = req.headers.authorization;
   if (!header) {
@@ -87,58 +133,64 @@ export function extractUserId(req: { headers: { authorization?: string } }): str
   return verifyToken(header.slice(BEARER_PREFIX.length))?.userId ?? null;
 }
 
-export function requireAuth(ctx: Context): string {
-  if (!ctx.userId) {
-    throw new GraphQLError('Unauthenticated', {
-      extensions: { code: 'UNAUTHENTICATED' },
-    });
-  }
-  return ctx.userId;
-}
-
+/**
+ * Puts an address in the one form accounts are keyed by.
+ *
+ * @param email - The address as typed.
+ * @returns It, lower-cased and trimmed.
+ */
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
 /**
- * Registration is open: completing a sign-in for an address that has never been
- * seen creates the account. Self-hosting is the deployment model, so the person
- * who can reach the instance is the person who is meant to have an account.
+ * Finds the account for an address, creating it on first sign-in.
+ *
+ * @param db - Database client.
+ * @param email - A normalised address.
+ * @returns The account's id.
+ * @throws When the insert returns no row.
+ *
+ * @remarks
+ * Registration is open. Self-hosting is the deployment model, so the person who can reach the instance is the
+ * person who is meant to have an account.
  */
-// biome-ignore lint/suspicious/noExplicitAny: drizzle-orm 1.0 column type compat
-export async function findOrCreateUser(db: any, email: string): Promise<string> {
-  const existing = await db
+export async function findOrCreateUser(db: DB, email: string): Promise<string> {
+  const [existing] = await db
     .select({ id: dbSchema.users.id })
     .from(dbSchema.users)
     .where(eq(dbSchema.users.email, email));
-  if (existing.length > 0) {
-    return existing[0].id;
+  if (existing) {
+    return existing.id;
   }
 
   const [created] = await db.insert(dbSchema.users).values({ email }).returning({ id: dbSchema.users.id });
   if (!created) {
-    throw new GraphQLError('Failed to create user');
+    throw new Error(`Creating the account for ${email} returned no row.`);
   }
   return created.id;
 }
 
+/**
+ * Adds the sign-in mutations to the generated schema.
+ *
+ * @param schema - The schema drizzle-graphql generated.
+ * @returns The schema with `requestMagicLink` and `verifyMagicLink` resolved.
+ */
 export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   const extendedSchema = extendSchema(schema, AUTH_SDL);
-  const mutationType = extendedSchema.getType('Mutation') as GraphQLObjectType;
-  const fields = mutationType.getFields();
+  const fields = objectType(extendedSchema, MUTATION_TYPE).getFields();
 
   fields.requestMagicLink.resolve = async (_parent: unknown, args: { email: string }, context: Context) => {
     const email = normalizeEmail(args.email);
-    if (!signInLimiter.allow(email)) {
-      throw new GraphQLError('Too many sign-in attempts. Try again in a few minutes.', {
-        extensions: { code: 'TOO_MANY_REQUESTS' },
-      });
+    const isOverLimit = signInLimiter.allow(email) === false;
+    if (isOverLimit) {
+      throw rateLimited('Too many sign-in attempts. Try again in a few minutes.');
     }
 
-    // No-link mode: the address alone is the credential. Only ever appropriate
-    // on a private instance — see config.ts and the README's "Before you expose
-    // it".
-    if (!magicLinkRequired()) {
+    // No-link mode: the address alone is the credential. Only for a private instance: see config.ts.
+    const isDirectSignIn = magicLinkRequired() === false;
+    if (isDirectSignIn) {
       const userId = await findOrCreateUser(context.db, email);
       console.log(`[auth] Magic links are off; signed ${email} in directly.`);
       return { ok: true, magicLink: null, token: signToken(userId), userId };
@@ -153,9 +205,7 @@ export function applyAuthExtension(schema: GraphQLSchema): GraphQLSchema {
   fields.verifyMagicLink.resolve = async (_parent: unknown, args: { token: string }, context: Context) => {
     const payload = verifyMagicToken(args.token);
     if (!payload) {
-      throw new GraphQLError('Invalid or expired magic link', {
-        extensions: { code: 'BAD_USER_INPUT' },
-      });
+      throw badInput('Invalid or expired magic link');
     }
     const userId = await findOrCreateUser(context.db, normalizeEmail(payload.email));
     return { token: signToken(userId), userId };

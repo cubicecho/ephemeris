@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+import { HttpStatus } from '../core/wire.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -16,47 +17,89 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
 };
+const FALLBACK_MIME = 'application/octet-stream';
+const ALLOWED_METHODS = ['GET', 'HEAD'];
+/** The page every unknown path gets, because the SPA owns routing. */
+const SPA_ENTRY = 'index.html';
+/** Where Vite puts its content-hashed bundles. */
+const HASHED_ASSETS_PREFIX = '/assets/';
+const CACHE_IMMUTABLE = 'public, max-age=31536000, immutable';
+const CACHE_REVALIDATE = 'no-cache';
+/** Only there so a path-only request URL parses. */
+const PLACEHOLDER_ORIGIN = 'http://host';
 
 /**
- * Serves the built web client next to /graphql, so one container is the whole
- * deployment and a magic link needs no second origin. Unknown paths fall back to
- * index.html — the SPA owns routing, including /auth/verify?token=… . Vite's
- * hashed bundles under /assets get immutable caching; everything else revalidates.
+ * Reads the decoded path out of a request URL.
+ *
+ * @param url - The request's URL, path and query only.
+ * @returns The path, or null when its percent-encoding is malformed.
+ */
+function decodePathname(url: string): string | null {
+  try {
+    return decodeURIComponent(new URL(url, PLACEHOLDER_ORIGIN).pathname);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a path names a file that can be sent.
+ *
+ * @param filePath - Absolute path.
+ * @returns True for an existing path that is not a directory.
+ */
+function isServableFile(filePath: string): boolean {
+  return existsSync(filePath) && statSync(filePath).isDirectory() === false;
+}
+
+/**
+ * Builds the handler that serves the built web client next to /graphql.
+ *
+ * @param root - Directory holding the client build.
+ * @returns A Node request handler.
+ *
+ * @remarks
+ * One container is the whole deployment, and a magic link needs no second origin. Unknown paths fall back to
+ * index.html, including /auth/verify?token=… . Hashed bundles under /assets cache forever; the rest revalidates.
  */
 export function createStaticHandler(root: string) {
   const rootDir = resolve(root);
+  const entryPath = join(rootDir, SPA_ENTRY);
+
   return (req: IncomingMessage, res: ServerResponse): void => {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405, { allow: 'GET, HEAD' }).end();
+    const method = req.method ?? '';
+    const isOtherMethod = ALLOWED_METHODS.includes(method) === false;
+    if (isOtherMethod) {
+      res.writeHead(HttpStatus.MethodNotAllowed, { allow: ALLOWED_METHODS.join(', ') }).end();
       return;
     }
-    let pathname: string;
-    try {
-      pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://host').pathname);
-    } catch {
-      res.writeHead(400).end();
+
+    const pathname = decodePathname(req.url ?? '/');
+    if (pathname === null) {
+      res.writeHead(HttpStatus.BadRequest).end();
       return;
     }
-    let filePath = resolve(join(rootDir, normalize(pathname)));
-    // normalize() alone does not stop "..%2f" walking out of the root once the
-    // path has been decoded — compare the resolved path instead.
-    const isOutsideRoot = filePath !== rootDir && filePath.startsWith(rootDir + sep) === false;
+
+    const requestedPath = resolve(join(rootDir, normalize(pathname)));
+    // normalize() alone does not stop "..%2f" walking out of the root once decoded. Compare the resolved path.
+    const isOutsideRoot = requestedPath !== rootDir && requestedPath.startsWith(rootDir + sep) === false;
     if (isOutsideRoot) {
-      res.writeHead(403).end();
+      res.writeHead(HttpStatus.Forbidden).end();
       return;
     }
-    if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
-      filePath = join(rootDir, 'index.html');
-      if (!existsSync(filePath)) {
-        res.writeHead(404).end();
-        return;
-      }
+
+    const filePath = isServableFile(requestedPath) ? requestedPath : entryPath;
+    const isMissing = existsSync(filePath) === false;
+    if (isMissing) {
+      res.writeHead(HttpStatus.NotFound).end();
+      return;
     }
-    res.writeHead(200, {
-      'content-type': MIME[extname(filePath)] ?? 'application/octet-stream',
-      'cache-control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+
+    res.writeHead(HttpStatus.Ok, {
+      'content-type': MIME[extname(filePath)] ?? FALLBACK_MIME,
+      'cache-control': pathname.startsWith(HASHED_ASSETS_PREFIX) ? CACHE_IMMUTABLE : CACHE_REVALIDATE,
     });
-    if (req.method === 'HEAD') {
+    if (method === 'HEAD') {
       res.end();
       return;
     }

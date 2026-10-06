@@ -1,0 +1,63 @@
+import { GraphQLError } from 'graphql';
+
+/** The `extensions.code` values clients branch on. */
+export const ErrorCode = {
+  Unauthenticated: 'UNAUTHENTICATED',
+  NotFound: 'NOT_FOUND',
+  BadUserInput: 'BAD_USER_INPUT',
+  TooManyRequests: 'TOO_MANY_REQUESTS',
+  Forbidden: 'FORBIDDEN',
+  QueryTooComplex: 'QUERY_TOO_COMPLEX',
+} as const;
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/**
+ * Makes an error factory for one code.
+ *
+ * @param code - The `extensions.code` value.
+ * @returns A function from message to GraphQLError.
+ */
+const withCode =
+  (code: ErrorCode) =>
+  (message: string): GraphQLError =>
+    new GraphQLError(message, { extensions: { code } });
+
+/** Arguments the caller can fix. */
+export const badInput = withCode(ErrorCode.BadUserInput);
+/** Too many attempts inside one window. */
+export const rateLimited = withCode(ErrorCode.TooManyRequests);
+
+/**
+ * Builds the signed-out refusal.
+ *
+ * @param [message] - Client-readable message.
+ * @returns The error, for the caller to throw.
+ */
+export const unauthenticated = (message = 'Not authenticated'): GraphQLError =>
+  new GraphQLError(message, { extensions: { code: ErrorCode.Unauthenticated } });
+
+/**
+ * Reads the signed-in user's id.
+ *
+ * @param ctx - Request context.
+ * @returns The user's id.
+ * @throws UNAUTHENTICATED when nobody is signed in: the id is missing, null or empty.
+ */
+export function requireAuth(ctx: { userId?: string | null }): string {
+  const { userId } = ctx;
+  const isSignedOut = userId === undefined || userId === null || userId === '';
+  if (isSignedOut) {
+    throw unauthenticated();
+  }
+  return userId;
+}
+
+/**
+ * Reads the message of any caught value.
+ *
+ * @param error - Whatever was thrown.
+ * @returns `error.message` for an Error, otherwise `String(error)`.
+ */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
