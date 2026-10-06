@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 // Preflight is a module that exits the process, so the only honest way to test
 // it is to run it as one.
 
-const PREFLIGHT = fileURLToPath(new URL('../preflight.ts', import.meta.url));
+const PREFLIGHT = fileURLToPath(new URL('../core/preflight.ts', import.meta.url));
 const DATABASE_URL = 'postgres://ephemeris:ephemeris@127.0.0.1:5437/ephemeris';
 const STRONG_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 

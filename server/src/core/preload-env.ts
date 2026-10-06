@@ -5,7 +5,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 // `.env.local` first, and that is not a typo: `process.loadEnvFile` leaves a
 // variable alone once it is set, so the *first* file to name one wins. That is

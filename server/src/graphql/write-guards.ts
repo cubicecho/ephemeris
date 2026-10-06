@@ -1,6 +1,6 @@
 import type { BuildSchemaConfig, WriteHookPayload } from '@vantreeseba/drizzle-graphql';
 import { GraphQLError } from 'graphql';
-import { maxBodyChars } from '../config.ts';
+import { maxBodyChars } from '../core/config.ts';
 
 // Two things the generated write cannot say for itself. Both are also database
 // constraints — the check on `mood`, and `text` having no length of its own is

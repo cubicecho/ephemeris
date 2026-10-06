@@ -1,8 +1,8 @@
 import type { DB } from '@cubicecho/ephemeris-db';
 import { createYoga } from 'graphql-yoga';
+import { extractUserId } from '../auth/resolvers.ts';
+import type { Context } from '../core/context.ts';
 import { createSchema } from './build-schema.ts';
-import type { Context } from './context.ts';
-import { extractUserId } from './resolvers/auth.ts';
 
 export function createGraphQLHandler({ db }: { db: DB }) {
   const { schema } = createSchema(db);

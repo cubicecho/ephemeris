@@ -1,4 +1,4 @@
-import './preflight.ts';
+import './core/preflight.ts';
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,11 +6,11 @@ import { db } from '@cubicecho/ephemeris-db';
 import cors from 'cors';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import express from 'express';
-import { appUrl, magicLinkExposed, magicLinkRequired, port, secureLocalNet } from './config.ts';
-import { createGraphQLHandler } from './graphql.ts';
-import { createStaticHandler } from './static.ts';
+import { appUrl, magicLinkExposed, magicLinkRequired, port, secureLocalNet } from './core/config.ts';
+import { createGraphQLHandler } from './graphql/handler.ts';
+import { createStaticHandler } from './http/static.ts';
 
-export type { Context } from './context.ts';
+export type { Context } from './core/context.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = port();

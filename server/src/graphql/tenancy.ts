@@ -1,7 +1,7 @@
 import type { BuildSchemaConfig, RowScope } from '@vantreeseba/drizzle-graphql';
 import { eq } from 'drizzle-orm';
-import type { Context } from './context.ts';
-import { requireAuth } from './resolvers/auth.ts';
+import { requireAuth } from '../auth/resolvers.ts';
+import type { Context } from '../core/context.ts';
 
 // Multi-tenancy, expressed as drizzle-graphql configuration rather than as
 // resolver wrappers. `scope` is ANDed into the SQL of every read, update and
@@ -41,7 +41,7 @@ export const contextValues: NonNullable<BuildSchemaConfig['contextValues']> = Ob
 );
 
 /**
- * `users` writes belong to the auth flow (resolvers/auth.ts): an account exists
+ * `users` writes belong to the auth flow (auth/resolvers.ts): an account exists
  * because a sign-in created it, and there is nothing else about a user to edit.
  * Everything `entries` needs is generated CRUD plus the upsert.
  */
