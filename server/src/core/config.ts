@@ -1,4 +1,6 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
+import { createRequire } from 'node:module';
+import { DATABASE_DEFAULTS } from '@cubicecho/ephemeris-db/defaults';
 import { AUTH_DEFAULTS, ENTRY_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 /** Env values that count as on, in lower case. */
@@ -6,6 +8,7 @@ const TRUTHY = ['1', 'true', 'yes'];
 /** Env values that count as off, in lower case. */
 const FALSY = ['0', 'false', 'no'];
 const NODE_ENV_PRODUCTION = 'production';
+const UNKNOWN_VERSION = 'unknown';
 
 /** What tokens are signed with outside production when `JWT_SECRET` is unset. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production';
@@ -124,3 +127,35 @@ export const appUrl = (): string => process.env.APP_URL ?? `http://localhost:${p
  * @returns `MAX_BODY_CHARS`, or `ENTRY_DEFAULTS.maxBodyLength`.
  */
 export const maxBodyChars = (): number => envNumber(process.env.MAX_BODY_CHARS, ENTRY_DEFAULTS.maxBodyLength);
+
+/**
+ * How long boot waits for Postgres before exiting.
+ *
+ * @returns `DB_CONNECT_TIMEOUT_MS`, or `DATABASE_DEFAULTS.connectTimeoutMs`, in milliseconds.
+ */
+export const dbConnectTimeoutMs = (): number =>
+  envNumber(process.env.DB_CONNECT_TIMEOUT_MS, DATABASE_DEFAULTS.connectTimeoutMs);
+
+/**
+ * Reads the version semantic-release stamped into the root package.json, which the Dockerfile copies.
+ *
+ * @returns The released version, or "unknown".
+ */
+function readVersion(): string {
+  try {
+    const manifest: { version?: string } = createRequire(import.meta.url)('../../../package.json');
+    return manifest.version || UNKNOWN_VERSION;
+  } catch {
+    return UNKNOWN_VERSION;
+  }
+}
+
+/** Stamped into the build, not configured. */
+const VERSION = readVersion();
+
+/**
+ * The version this build was released as.
+ *
+ * @returns The released version, or "unknown".
+ */
+export const version = (): string => VERSION;

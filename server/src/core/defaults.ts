@@ -4,10 +4,19 @@
 export interface HttpSettings {
   /** The port to listen on. `PORT` overrides it. */
   port: number;
+  /** Largest JSON body /graphql accepts, as `express.json` reads it. A full-length entry is well under it. */
+  bodyLimit: string;
+  /** How long shutdown lets open requests finish before it cuts them. */
+  drainSeconds: number;
+  /** How long shutdown may take in all before a hard exit. Keep it under Docker's 10 s. */
+  shutdownDeadlineSeconds: number;
 }
 
 export const HTTP_DEFAULTS: Readonly<HttpSettings> = Object.freeze({
   port: 3005,
+  bodyLimit: '1mb',
+  drainSeconds: 5,
+  shutdownDeadlineSeconds: 8,
 });
 
 /** The sign-in throttle. */

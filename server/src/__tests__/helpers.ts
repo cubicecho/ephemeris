@@ -1,3 +1,5 @@
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { relations } from '@cubicecho/ephemeris-db/relations';
 import * as dbSchema from '@cubicecho/ephemeris-db/schema';
 import { PGlite } from '@electric-sql/pglite';
@@ -67,4 +69,15 @@ export function createClient(db: TestDb, userId: string | null): TestClient {
       return { message: error.message, code: error.extensions?.code };
     },
   };
+}
+
+/**
+ * Reads the port a test server was given when it listened on port 0.
+ *
+ * @param server - A listening server.
+ * @returns The port it is bound to.
+ */
+export function portOf(server: Server): number {
+  const address = server.address() as AddressInfo;
+  return address.port;
 }
