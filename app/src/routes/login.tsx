@@ -64,7 +64,7 @@ export function LoginPage() {
           localLink ? (
             <p className="text-sm">
               This instance exposes sign-in links.{' '}
-              <Link className="font-medium underline" to={localLink}>
+              <Link className="font-medium text-info underline" to={localLink}>
                 Sign in now
               </Link>
             </p>

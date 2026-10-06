@@ -83,7 +83,7 @@ export function MoodSpectrum(props: ComponentProps<typeof RadioGroup>) {
                 'peer h-9 w-full shrink rounded-md transition-all [&>div]:hidden',
                 option.swatch,
                 'hover:brightness-95 dark:hover:brightness-110',
-                'aria-checked:ring-2 aria-checked:ring-ring aria-checked:ring-offset-2 aria-checked:ring-offset-background',
+                'aria-checked:ring-2 aria-checked:ring-active aria-checked:ring-offset-2 aria-checked:ring-offset-background',
               )}
             />
             <Label
