@@ -2,11 +2,14 @@ import { MockedProvider } from '@apollo/client/testing/react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { RecentEntries } from '@/components/entries/recent-days';
+import { RECENT_LIMIT, RecentEntries } from '@/components/entries/recent-days';
 import { JournalDay, JournalRoute } from '@/routes/journal';
 
 const DATE = '2026-09-15';
-const RECENT = { request: { query: RecentEntries }, result: { data: { entries: [] } } };
+const RECENT = {
+  request: { query: RecentEntries, variables: { limit: RECENT_LIMIT } },
+  result: { data: { entries: [] } },
+};
 
 /**
  * Draws the journal route on `DATE` against a mocked server.

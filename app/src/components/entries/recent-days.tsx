@@ -22,8 +22,8 @@ export const RECENT_LIMIT = 30;
  * onto the same cached rows, so the second caller costs nothing.
  */
 export const RecentEntries = graphql(`
-  query RecentEntries {
-    entries(orderBy: { entryDate: { direction: desc, priority: 1 } }, limit: 30) {
+  query RecentEntries($limit: Int!) {
+    entries(orderBy: { entryDate: { direction: desc, priority: 1 } }, limit: $limit) {
       id
       entryDate
       body
@@ -32,8 +32,13 @@ export const RecentEntries = graphql(`
   }
 `);
 
+/**
+ * The recent days, for both places that draw them.
+ *
+ * @returns Apollo's result for `RecentEntries`, asked for `RECENT_LIMIT` days.
+ */
 export function useRecentEntries() {
-  return useQuery(RecentEntries);
+  return useQuery(RecentEntries, { variables: { limit: RECENT_LIMIT } });
 }
 
 /**

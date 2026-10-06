@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppLayout } from '@/components/app-shell/app-layout';
-import { RecentEntries } from '@/components/entries/recent-days';
+import { RECENT_LIMIT, RecentEntries } from '@/components/entries/recent-days';
 
 const DAYS = [
   { __typename: 'Entry' as const, id: '1', entryDate: '2026-09-15', body: 'Today.', mood: 4 },
@@ -29,7 +29,11 @@ afterAll(() => vi.useRealTimers());
 
 function renderShell(today = TODAY) {
   return render(
-    <MockedProvider mocks={[{ request: { query: RecentEntries }, result: { data: { entries: DAYS } } }]}>
+    <MockedProvider
+      mocks={[
+        { request: { query: RecentEntries, variables: { limit: RECENT_LIMIT } }, result: { data: { entries: DAYS } } },
+      ]}
+    >
       <MemoryRouter initialEntries={[`/${today}`]}>
         <AppLayout contentSlot={<p>the page</p>} />
       </MemoryRouter>
@@ -82,7 +86,14 @@ describe('AppLayout', () => {
       return null;
     }
     render(
-      <MockedProvider mocks={[{ request: { query: RecentEntries }, result: { data: { entries: DAYS } } }]}>
+      <MockedProvider
+        mocks={[
+          {
+            request: { query: RecentEntries, variables: { limit: RECENT_LIMIT } },
+            result: { data: { entries: DAYS } },
+          },
+        ]}
+      >
         <MemoryRouter initialEntries={[`/${TODAY}`]}>
           <AppLayout contentSlot={<CaptureClient />} />
         </MemoryRouter>
