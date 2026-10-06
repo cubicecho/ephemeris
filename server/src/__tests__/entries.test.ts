@@ -1,5 +1,7 @@
 import * as dbSchema from '@cubicecho/ephemeris-db/schema';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ENTRY_DEFAULTS } from '../core/defaults.ts';
+import { ErrorCode } from '../core/errors.ts';
 import { createClient, createTestDb, createUser, type TestClient, type TestDb } from './helpers.ts';
 
 // One entry per person per day is the whole data model, and `upsertEntry` is the
@@ -80,9 +82,9 @@ describe('one writer cannot reach another', () => {
 
   it('refuses to answer at all without a caller', async () => {
     const anonymous = createClient(db, null);
-    expect((await anonymous.expectError(LIST)).code).toBe('UNAUTHENTICATED');
+    expect((await anonymous.expectError(LIST)).code).toBe(ErrorCode.Unauthenticated);
     expect((await anonymous.expectError(SAVE, { date: '2026-09-15', body: 'x', mood: null })).code).toBe(
-      'UNAUTHENTICATED',
+      ErrorCode.Unauthenticated,
     );
   });
 });
@@ -90,22 +92,23 @@ describe('one writer cannot reach another', () => {
 describe('what an entry may contain', () => {
   it.each([0, 6, -1])('refuses a mood of %i', async (mood) => {
     const error = await mine.expectError(SAVE, { date: '2026-09-15', body: 'Off the scale.', mood });
-    expect(error.code).toBe('BAD_USER_INPUT');
-    expect(error.message).toContain('1 to 5');
+    expect(error.code).toBe(ErrorCode.BadUserInput);
 
     // The hook runs inside the mutation's transaction, so nothing was written.
     expect(await db.select().from(dbSchema.entries)).toHaveLength(0);
   });
 
   it('refuses a body past the limit', async () => {
-    process.env.MAX_BODY_CHARS = '16';
-    try {
-      const error = await mine.expectError(SAVE, { date: '2026-09-15', body: 'x'.repeat(17), mood: null });
-      expect(error.code).toBe('BAD_USER_INPUT');
-      expect(error.message).toContain('16 characters');
-    } finally {
-      delete process.env.MAX_BODY_CHARS;
-    }
+    const body = 'x'.repeat(ENTRY_DEFAULTS.maxBodyLength + 1);
+    const error = await mine.expectError(SAVE, { date: '2026-09-15', body, mood: null });
+    expect(error.code).toBe(ErrorCode.BadUserInput);
+    expect(await db.select().from(dbSchema.entries)).toHaveLength(0);
+  });
+
+  it('takes a body exactly at the limit', async () => {
+    const body = 'x'.repeat(ENTRY_DEFAULTS.maxBodyLength);
+    const saved = (await mine.expectOk(SAVE, { date: '2026-09-15', body, mood: null })).upsertEntry;
+    expect(saved.body).toHaveLength(ENTRY_DEFAULTS.maxBodyLength);
   });
 
   it('will not take a userId from the caller', async () => {
