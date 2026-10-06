@@ -29,9 +29,7 @@ function renderShell(today = TODAY) {
   return render(
     <MockedProvider mocks={[{ request: { query: RecentEntries }, result: { data: { entries: DAYS } } }]}>
       <MemoryRouter initialEntries={[`/${today}`]}>
-        <AppLayout>
-          <p>the page</p>
-        </AppLayout>
+        <AppLayout contentSlot={<p>the page</p>} />
       </MemoryRouter>
     </MockedProvider>,
   );

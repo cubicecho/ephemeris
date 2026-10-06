@@ -1,5 +1,4 @@
 import { BookOpen, CalendarDays, LogOut } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { ActionButton } from '@/components/action-button';
 import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
@@ -9,6 +8,7 @@ import { SidebarLayout } from '@/components/split-layout';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
+import type { SlotNode } from '@/lib/utils';
 
 /** Forgets the token and goes back to the login screen — for shared machines. */
 function useSignOut() {
@@ -17,6 +17,11 @@ function useSignOut() {
     clearToken();
     navigate('/login', { replace: true });
   };
+}
+
+interface AppLayoutProps {
+  /** The page: the one part of the chrome that scrolls. */
+  contentSlot: SlotNode;
 }
 
 /**
@@ -31,7 +36,7 @@ function useSignOut() {
  * twice: as the bar's `status` on a phone, and by the Recent section's heading
  * in the rail.
  */
-export function AppLayout({ children }: { children: ReactNode }) {
+export function AppLayout({ contentSlot }: AppLayoutProps) {
   const today = todayIso();
   const signOut = useSignOut();
   const { data } = useRecentEntries();
@@ -83,7 +88,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           onClick={signOut}
         />,
       ]}
-      contentSlot={<main className="min-h-0 flex-1 overflow-auto">{children}</main>}
+      contentSlot={<main className="min-h-0 flex-1 overflow-auto">{contentSlot}</main>}
     />
   );
 }

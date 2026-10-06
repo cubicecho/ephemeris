@@ -7,6 +7,7 @@ import { useThemePreference } from '@/components/ui/theme-preference';
 import { apolloClient } from '@/lib/apollo';
 import { getToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
+import type { SlotNode } from '@/lib/utils';
 import { JournalRoute } from '@/routes/journal';
 import { LoginPage } from '@/routes/login';
 import { VerifyPage } from '@/routes/verify';
@@ -17,11 +18,11 @@ import './index.css';
  * The app chrome lives behind this, because the rail lists your days and the
  * signed-out screens are a single centred card with nothing to navigate.
  */
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth({ contentSlot }: { contentSlot: SlotNode }) {
   if (!getToken()) {
     return <Navigate to="/login" replace />;
   }
-  return <AppLayout>{children}</AppLayout>;
+  return <AppLayout contentSlot={contentSlot} />;
 }
 
 /**
@@ -58,14 +59,7 @@ createRoot(rootElement).render(
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/verify" element={<VerifyPage />} />
           <Route path="/" element={<Navigate to={`/${todayIso()}`} replace />} />
-          <Route
-            path="/:date"
-            element={
-              <RequireAuth>
-                <JournalRoute />
-              </RequireAuth>
-            }
-          />
+          <Route path="/:date" element={<RequireAuth contentSlot={<JournalRoute />} />} />
         </Routes>
       </BrowserRouter>
     </ApolloProvider>
