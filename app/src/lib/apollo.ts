@@ -10,7 +10,9 @@ const httpLink = new HttpLink({
   fetch: (uri, options) => {
     const headers = new Headers(options?.headers);
     const token = getToken();
-    if (token) headers.set('authorization', `Bearer ${token}`);
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
     return fetch(uri, { ...options, headers });
   },
 });
@@ -19,10 +21,18 @@ const httpLink = new HttpLink({
 // the same way. Drop it and start over at sign-in rather than rendering a page
 // of errors.
 const errorLink = new ErrorLink(({ error }) => {
-  if (!CombinedGraphQLErrors.is(error)) return;
-  if (!error.errors.some((e) => e.extensions?.code === 'UNAUTHENTICATED')) return;
+  const isNetworkFailure = CombinedGraphQLErrors.is(error) === false;
+  if (isNetworkFailure) {
+    return;
+  }
+  const isSessionValid = error.errors.some(({ extensions }) => extensions?.code === 'UNAUTHENTICATED') === false;
+  if (isSessionValid) {
+    return;
+  }
   clearToken();
-  if (window.location.pathname !== '/login') window.location.assign('/login');
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
 });
 
 export const apolloClient = new ApolloClient({

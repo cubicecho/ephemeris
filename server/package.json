@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=../.env --env-file-if-exists=../.env.local --watch src/index.ts",
     "start": "NODE_ENV=production node src/index.ts",
-    "codegen": "node --import=./src/preload-env.ts src/write_schema.ts && graphql-codegen-esm"
+    "codegen": "node --import=./src/preload-env.ts src/write-schema.ts && graphql-codegen-esm"
   },
   "dependencies": {
     "@cubicecho/ephemeris-db": "*",

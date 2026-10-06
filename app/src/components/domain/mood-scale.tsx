@@ -33,7 +33,9 @@ export function MoodDot({
 }) {
   const text = moodLabel(mood);
   const swatch = moodSwatch(mood);
-  if (!text || !swatch) return null;
+  if (!text || !swatch) {
+    return null;
+  }
 
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-1.5', className)}>

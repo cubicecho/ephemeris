@@ -19,8 +19,12 @@ type Row = Record<string, unknown>;
  * delete writes nothing and so has nothing to check.
  */
 export function writtenRows(args: { values?: Row | Row[]; set?: Row; updates?: Array<{ set?: Row }> }): Row[] {
-  if (args.values) return Array.isArray(args.values) ? args.values : [args.values];
-  if (args.updates) return args.updates.flatMap((entry) => (entry.set ? [entry.set] : []));
+  if (args.values) {
+    return Array.isArray(args.values) ? args.values : [args.values];
+  }
+  if (args.updates) {
+    return args.updates.flatMap((entry) => (entry.set ? [entry.set] : []));
+  }
   return args.set ? [args.set] : [];
 }
 
@@ -38,7 +42,8 @@ function assertEntryWritable(rows: Row[]): void {
     // `null` is a mood the writer cleared, and is not out of range.
     if ('mood' in row && row.mood != null) {
       const mood = Number(row.mood);
-      if (!Number.isInteger(mood) || mood < MOOD_MIN || mood > MOOD_MAX) {
+      const isOffScale = Number.isInteger(mood) === false || mood < MOOD_MIN || mood > MOOD_MAX;
+      if (isOffScale) {
         badInput(`Mood must be a whole number from ${MOOD_MIN} to ${MOOD_MAX}, or null.`);
       }
     }

@@ -26,12 +26,16 @@ export function LoginPage() {
   const [sent, setSent] = useState<{ magicLink: string | null } | null>(null);
   const [requestLink, { loading, error }] = useMutation(RequestMagicLink);
 
-  if (getToken()) return <Navigate to="/" replace />;
+  if (getToken()) {
+    return <Navigate to="/" replace />;
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const { data } = await requestLink({ variables: { email } }).catch(() => ({ data: undefined }));
-    if (!data) return;
+    if (!data) {
+      return;
+    }
     const result = data.requestMagicLink;
     // AUTH_MAGIC_LINK=false: the server signed us straight in.
     if (result.token) {

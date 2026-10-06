@@ -29,7 +29,13 @@ export function todayIso(): string {
  * caught here.
  */
 export function isValidIsoDate(value: string | undefined): value is string {
-  if (!value || !ISO_DATE.test(value)) return false;
+  if (!value) {
+    return false;
+  }
+  const isMalformed = ISO_DATE.test(value) === false;
+  if (isMalformed) {
+    return false;
+  }
   return toIso(fromIso(value)) === value;
 }
 
@@ -45,8 +51,12 @@ const withYear = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'lo
 /** "Today", "Yesterday", or the weekday and date — what the page is titled. */
 export function formatDay(iso: string): string {
   const today = todayIso();
-  if (iso === today) return 'Today';
-  if (iso === shiftDays(today, -1)) return 'Yesterday';
+  if (iso === today) {
+    return 'Today';
+  }
+  if (iso === shiftDays(today, -1)) {
+    return 'Yesterday';
+  }
   return longDate.format(fromIso(iso));
 }
 

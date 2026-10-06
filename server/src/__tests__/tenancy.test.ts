@@ -29,7 +29,10 @@ describe('tenancy configuration', () => {
     // scope is keyed by the schema export name; getting this wrong silently
     // scopes nothing, since an unknown key is simply never consulted.
     for (const [key, value] of Object.entries(dbSchema)) {
-      if (!is(value, Table)) continue;
+      const isOtherExport = is(value, Table) === false;
+      if (isOtherExport) {
+        continue;
+      }
       expect(Object.keys(scope)).toContain(key);
       expect(getTableName(value)).toBeTypeOf('string');
     }

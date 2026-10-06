@@ -71,11 +71,20 @@ export function verifyMagicToken(token: string): { email: string } | null {
   }
 }
 
+/** What an `Authorization` header starts with when it carries a session token. */
+const BEARER_PREFIX = 'Bearer ';
+
 /** Read the authenticated userId from a request's Bearer token, if any. */
 export function extractUserId(req: { headers: { authorization?: string } }): string | null {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) return null;
-  return verifyToken(auth.slice(7))?.userId ?? null;
+  const header = req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+  const isOtherScheme = header.startsWith(BEARER_PREFIX) === false;
+  if (isOtherScheme) {
+    return null;
+  }
+  return verifyToken(header.slice(BEARER_PREFIX.length))?.userId ?? null;
 }
 
 export function requireAuth(ctx: Context): string {
@@ -102,10 +111,14 @@ export async function findOrCreateUser(db: any, email: string): Promise<string> 
     .select({ id: dbSchema.users.id })
     .from(dbSchema.users)
     .where(eq(dbSchema.users.email, email));
-  if (existing.length > 0) return existing[0].id;
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
 
   const [created] = await db.insert(dbSchema.users).values({ email }).returning({ id: dbSchema.users.id });
-  if (!created) throw new GraphQLError('Failed to create user');
+  if (!created) {
+    throw new GraphQLError('Failed to create user');
+  }
   return created.id;
 }
 

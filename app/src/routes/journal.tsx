@@ -51,7 +51,10 @@ export function JournalRoute() {
 
   // A hand-typed or stale URL lands on today rather than on an error: there is
   // nothing to be wrong about, and every date has an entry waiting to be written.
-  if (!isValidIsoDate(date)) return <Navigate to={`/${today}`} replace />;
+  const isUnknownDay = isValidIsoDate(date) === false;
+  if (isUnknownDay) {
+    return <Navigate to={`/${today}`} replace />;
+  }
 
   return <JournalDayPage key={date} date={date} today={today} />;
 }
@@ -70,7 +73,9 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
   // cache-and-network refetch lands. `key={date}` remounts on a day change, so
   // this only ever runs against the day it is editing.
   useEffect(() => {
-    if (!data) return;
+    if (!data) {
+      return;
+    }
     setBody(data.entry?.body ?? '');
     setMood(data.entry?.mood ? String(data.entry.mood) : NO_MOOD);
   }, [data]);

@@ -18,7 +18,9 @@ import './index.css';
  * signed-out screens are a single centred card with nothing to navigate.
  */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  if (!getToken()) return <Navigate to="/login" replace />;
+  if (!getToken()) {
+    return <Navigate to="/login" replace />;
+  }
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -42,7 +44,12 @@ function ThemeSync() {
  * static segment above a dynamic one — and anything else that is not a date
  * redirects from inside the route.
  */
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('index.html has no #root element for the app to render into.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <ApolloProvider client={apolloClient}>
       <ThemeSync />
