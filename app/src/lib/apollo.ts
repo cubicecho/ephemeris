@@ -1,7 +1,7 @@
 import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from '@apollo/client';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { ErrorLink } from '@apollo/client/link/error';
-import { clearToken, getToken } from './auth';
+import { clearToken, getToken } from './auth.ts';
 
 // Same origin in both modes: the server serves the built bundle in production,
 // and Vite proxies /graphql to it in development.
