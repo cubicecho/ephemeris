@@ -1,9 +1,11 @@
 /**
  * Apollo 4's result, in the shape cubeui's QueryState reads.
  *
- * "Pending" and "failed" only count while there is nothing to show: a poll that
- * errors or a cache-and-network refetch must not swap a good list for a
- * skeleton or an error card.
+ * "Pending" and "failed" only count while there is nothing to show: a poll that errors or a cache-and-network refetch
+ * must not swap a good list for a skeleton or an error card.
+ *
+ * @param result - What `useQuery` returned.
+ * @returns The pending and failed flags, the error and the retry that QueryState takes.
  */
 export function queryLike(result: { data?: unknown; loading: boolean; error?: Error; refetch: () => unknown }) {
   const empty = result.data === undefined;

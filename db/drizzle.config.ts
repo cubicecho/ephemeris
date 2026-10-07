@@ -12,7 +12,9 @@ import { defineConfig } from 'drizzle-kit';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 for (const file of ['.env.local', '.env']) {
   const envPath = path.join(root, file);
-  if (existsSync(envPath)) process.loadEnvFile(envPath);
+  if (existsSync(envPath)) {
+    process.loadEnvFile(envPath);
+  }
 }
 
 const url = process.env.DATABASE_URL;

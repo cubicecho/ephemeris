@@ -3,6 +3,11 @@
 // bundle is served by Vite on a different port from the server.
 const TOKEN_KEY = 'ephemeris_token';
 
+/**
+ * Reads the session token.
+ *
+ * @returns The token, or null when there is none or the browser blocks storage.
+ */
 export function getToken(): string | null {
   try {
     return window.localStorage.getItem(TOKEN_KEY);
@@ -11,10 +16,16 @@ export function getToken(): string | null {
   }
 }
 
+/**
+ * Keeps the session token for later visits.
+ *
+ * @param token - The token the server issued.
+ */
 export function setToken(token: string): void {
   window.localStorage.setItem(TOKEN_KEY, token);
 }
 
+/** Forgets the session token. Signing out, as far as this device is concerned. */
 export function clearToken(): void {
   try {
     window.localStorage.removeItem(TOKEN_KEY);

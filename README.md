@@ -34,15 +34,18 @@ git clone https://github.com/cubicecho/ephemeris.git
 cd ephemeris
 
 export JWT_SECRET=$(openssl rand -hex 32) POSTGRES_PASSWORD=$(openssl rand -hex 24)
-docker compose up --build -d
+docker compose up -d
 ```
+
+That runs the published image, `ghcr.io/cubicecho/ephemeris:latest`. Add
+`--build` to build the checkout instead.
 
 Ephemeris is then on `http://localhost:3005`. Migrations run at boot, so there is
 no setup step. Sign in with any email address; Ephemeris ships no mail provider,
 so the magic link goes to the log, and that is the delivery channel:
 
 ```bash
-docker logs -f ephemeris-app-1
+docker compose logs -f ephemeris
 ```
 
 Keep that `JWT_SECRET`. It signs sessions, so changing it signs everyone out.
@@ -64,6 +67,12 @@ domain.
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | The narrower spelling of the same thing: `false` turns the link off and leaves everything else alone. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
+| `TRUST_PROXY` | `false` | The proxies in front that may set `X-Forwarded-For`: `1` for one reverse proxy, or `loopback`, `uniquelocal`, or a list of addresses. The sign-in throttle counts by client address. |
+| `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
+
+A connection to a public database host uses TLS. A loopback, LAN or compose
+host does not, and an explicit `sslmode` in `DATABASE_URL` decides it either way.
+`/healthz` answers 200 while Postgres does, and 503 when it does not.
 
 ## Before you expose it
 
@@ -73,9 +82,11 @@ for an instance on the public internet. A journal is also about as personal as
 self-hosted data gets. Before putting Ephemeris on a domain:
 
 - **Put it behind something.** A reverse proxy with TLS, and — if the instance is
-  yours alone — an allowlist, VPN, or auth in front of it. Ephemeris rate-limits
-  sign-in requests per address in process; per-IP limiting is the proxy's job,
-  because the proxy is the only thing that reliably knows the client's address.
+  yours alone — an allowlist, VPN, or auth in front of it.
+- **Set `TRUST_PROXY` to match that proxy** (`1` for a single one). Sign-in is
+  rate-limited per client address and per email, and behind a proxy every
+  request carries the proxy's address until this says otherwise. Never `true`
+  on a port the internet can reach: a client could then choose its own address.
 - **Never set `SECURE_LOCAL_NET=true` (or `AUTH_MAGIC_LINK=false`) on a reachable
   instance.** Either one makes an email address the entire credential: anyone who
   can load the login page can sign in as anyone. They are for a LAN you control,
@@ -103,7 +114,9 @@ outside production the magic link comes back in the response, so the login page
 offers it as a link.
 
 `npm run check` runs codegen, Biome and `tsc --noEmit` across all three
-workspaces; `npm test` runs the suite against an in-memory Postgres. See
+workspaces; `npm test` runs the suite against an in-memory Postgres, and then
+every Storybook story in a headless Chromium (`npx playwright install chromium`
+once per machine). `npm run storybook` opens the stories on port 6006. See
 [AGENTS.md](AGENTS.md) for how the pieces fit together.
 
 ### Running the database on another host

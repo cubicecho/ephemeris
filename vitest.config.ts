@@ -9,8 +9,9 @@ const alias = [
   { find: /^graphql$/, replacement: path.resolve(__dirname, './node_modules/graphql/index.js') },
 ];
 
-// Two projects: server and db tests run a real Postgres in-process (PGlite) and
-// must not pay for a DOM; component tests are a DOM and nothing else.
+// Three projects: server and db tests run a real Postgres in-process (PGlite) and
+// must not pay for a DOM; component tests are a DOM and nothing else; and every
+// story runs as a test in a real browser, after the other two have finished.
 export default defineConfig({
   resolve: { alias },
   test: {
@@ -25,6 +26,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
+          sequence: { groupOrder: 0 },
           include: ['db/**/*.test.ts', 'server/**/*.test.ts', 'app/src/lib/**/*.test.ts'],
         },
       },
@@ -33,10 +35,13 @@ export default defineConfig({
         test: {
           name: 'dom',
           environment: 'jsdom',
+          sequence: { groupOrder: 0 },
           setupFiles: ['./vitest.setup.ts'],
           include: ['app/**/*.test.tsx'],
         },
       },
+      // The stories, in a real Chromium. Its own file, because it needs the app's Vite plugins.
+      './app/vitest.stories.config.ts',
     ],
   },
 });

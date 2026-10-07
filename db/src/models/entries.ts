@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { check, date, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 import { users } from './users.ts';
 
@@ -40,8 +40,8 @@ export const entries = pgTable(
     // The upsert conflict target, and the invariant it enforces: one entry per
     // day. A second write for a day the person already wrote about has to be an
     // edit, never a second row, or "how did I feel on Tuesday" has two answers.
+    // Its index also serves every "this writer's days, by date" read, so there is no second one.
     unique('uq_entries_user_date').on(t.userId, t.entryDate),
-    index('idx_entries_user_date').on(t.userId, t.entryDate),
     // The range is checked in the resolver too, for a readable message. This is
     // the one that still holds for a write that did not come through GraphQL.
     check('ck_entries_mood_range', sql`${t.mood} is null or (${t.mood} between 1 and 5)`),

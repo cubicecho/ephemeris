@@ -1,5 +1,5 @@
 // The 1–5 scale, in one place. The server has the same range twice — a check
-// constraint on the column and a readable guard in resolvers/write-guards.ts —
+// constraint on the column and a readable guard in entries/input.ts —
 // and these are the words that go with it.
 
 /**
@@ -25,11 +25,22 @@ export const MOODS = [
 /** The radio value for "no mood recorded". A journal entry may be written without one. */
 export const NO_MOOD = 'none';
 
+/**
+ * The word for a step on the scale.
+ *
+ * @param mood - 1 to 5, or nothing for a day with no mood recorded.
+ * @returns The step's label, or null when the value is not a step.
+ */
 export function moodLabel(mood: number | null | undefined): string | null {
   return MOODS.find((entry) => entry.value === mood)?.label ?? null;
 }
 
-/** The background class for a mood, or `null` for the day nobody rated. */
+/**
+ * The colour for a step on the scale.
+ *
+ * @param mood - 1 to 5, or nothing for a day with no mood recorded.
+ * @returns The step's background classes, or null for the day nobody rated.
+ */
 export function moodSwatch(mood: number | null | undefined): string | null {
   return MOODS.find((entry) => entry.value === mood)?.swatch ?? null;
 }

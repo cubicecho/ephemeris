@@ -18,49 +18,67 @@ integration is not built here, and nothing in this repo reaches out to them.
 | -------- | ------------------------------------------------ |
 | Frontend | React 19, Vite 7, react-router, Apollo Client 4   |
 | UI       | Tailwind CSS v4, shadcn/ui + cubeui, Radix UI     |
+| Forms    | TanStack Form, through cubeui's `useAppForm`      |
 | API      | graphql-yoga 5 on Express 5, GraphQL              |
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)          |
-| Testing  | Vitest, PGlite as an in-memory Postgres fixture   |
+| Testing  | Vitest, PGlite as an in-memory Postgres fixture; Storybook stories run in Chromium |
 | Linting  | Biome (formatter + linter)                        |
-| Runtime  | Node.js 24+, ESM (`"type": "module"` throughout)  |
+| Runtime  | Node.js 26+, ESM (`"type": "module"` throughout)  |
 
 ## Project Structure
 
 ```
 ephemeris/
 ├── app/                     # Frontend (Vite SPA, built to app/dist)
+│   ├── .storybook/          # main.ts, and preview.tsx: the providers around every story
+│   ├── vitest.stories.config.ts  # The Vitest project that runs the stories in Chromium
 │   └── src/
 │       ├── __generated__/   # Generated GraphQL types (do not edit, not committed)
 │       ├── components/
 │       │   ├── ui/          # shadcn/ui + cubeui primitives — vendored, not linted
-│       │   ├── layouts/     # app-layout (the SidebarLayout chrome), rail-link
-│       │   ├── domain/      # recent-days, mood-scale
-│       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, …)
+│       │   ├── app-shell/   # app-layout (the SidebarLayout chrome), sidebar-link
+│       │   ├── entries/     # recent-days, entry-form (the editor and its two documents)
+│       │   ├── mood/        # mood-scale, mood-field (the scale bound to a form)
+│       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, app-form, …)
 │       ├── routes/          # login, verify, journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
+│       ├── testing/         # story-mocks: the mocked server answers stories share
 │       └── main.tsx         # Providers + the router
 ├── server/                  # GraphQL API (port 3005)
 │   ├── __generated__/       # Generated SDL (not committed)
 │   └── src/
-│       ├── index.ts         # Entry point: migrate, mount /graphql, serve the SPA
-│       ├── preflight.ts     # Boot guards — imported first, on purpose
-│       ├── config.ts        # Every env var, read at call time
-│       ├── build-schema.ts  # createSchema(db) — buildSchema + extensions
-│       ├── tenancy.ts       # Row scope, server-owned columns and which writes exist
-│       ├── resolvers/
-│       │   ├── auth.ts          # Magic-link sign-in — the one thing that is not CRUD
-│       │   └── write-guards.ts  # onWrite hook: the mood scale and the body limit
-│       └── __tests__/       # Server tests
+│       ├── index.ts         # Entry point: wait for Postgres, migrate, listen, stop on a signal
+│       ├── core/            # What every folder may import, and which imports none of them
+│       │   ├── preflight.ts     # Boot guards — imported first, on purpose
+│       │   ├── preload-env.ts   # Loads the root env files ahead of the imports (codegen)
+│       │   ├── defaults.ts      # Every tunable value, as plain frozen data
+│       │   ├── config.ts        # Every env var, read at call time, over those defaults
+│       │   ├── errors.ts        # ErrorCode and the one factory per code
+│       │   ├── context.ts, validation.ts, wire.ts
+│       ├── http/            # app.ts (createApp), health.ts, static.ts, shutdown.ts
+│       ├── graphql/
+│       │   ├── build-schema.ts  # createSchema(db) — buildSchema + extensions
+│       │   ├── tenancy.ts       # Row scope, server-owned columns and which writes exist
+│       │   ├── operation-limits.ts  # Depth, alias and cost limits on one operation
+│       │   ├── write-guards.ts  # writtenRows: what every table's write hooks share
+│       │   └── handler.ts, schema.ts, logger.ts, write-schema.ts
+│       ├── auth/            # resolvers.ts (magic-link sign-in, the one thing that is not CRUD), rate-limit.ts
+│       ├── entries/         # hooks.ts (the onWrite hook), input.ts (the mood scale and the body limit)
+│       └── __tests__/       # Server tests, in the same folders as what they test
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
 │       ├── models/          # users, entries
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
+│       ├── defaults.ts      # Connection and retry timings, as plain frozen data
+│       ├── ssl.ts           # requiresSsl: TLS for a public host, not for a LAN or compose one
+│       ├── wait.ts          # waitForDatabase: retry until Postgres answers
 │       └── index.ts         # DB singleton + re-exports
-├── Dockerfile               # node:24-alpine; the `test` stage runs the suite
+├── .github/workflows/       # ci.yml (check, migrations, boot), release.yml (semantic-release + images)
+├── Dockerfile               # node:26-slim; the `test` stage runs the suite
 ├── docker-compose.dev.yml   # Infrastructure only — Postgres. Never the app.
 ├── .env.local.example       # Per-machine overrides; how to develop against docker.lan
-└── docker-compose.yml       # The whole stack, built from this checkout
+└── docker-compose.yml       # The whole stack: the published image, or this checkout with --build
 ```
 
 ## Commands
@@ -73,10 +91,12 @@ npm run db:generate      # new migration from a schema change
 npm run db:migrate       # apply migrations
 npm run codegen          # GraphQL types for both server and app
 npm run check            # codegen + biome + tsc --noEmit, all three workspaces
-npm test                 # Vitest
+npm test                 # Vitest: server and db, components, then every story in Chromium
+npm run storybook        # Storybook on 6006
 ```
 
-`npm run check` is the gate. Run it before saying a change is done.
+`npm run check` is the gate. Run it and `npm test` before saying a change is done.
+The stories need a browser once per machine: `npx playwright install chromium`.
 
 ## How the API is built
 
@@ -93,8 +113,8 @@ fields and — here — the writes too, for every table in `db/src/relations.ts`
 - **`upsert` is not on by default — this app turns it on**, and that single
   feature flag is the reason there is no hand-written `saveEntry`. See the
   invariant below.
-- **Only what CRUD cannot express gets a resolver.** That is `resolvers/auth.ts`,
-  and nothing else. `resolvers/write-guards.ts` is not a resolver: it is an
+- **Only what CRUD cannot express gets a resolver.** That is `auth/resolvers.ts`,
+  and nothing else. `entries/hooks.ts` is not a resolver: it is an
   `onWrite` hook on the generated mutations.
 - **Ids are `UUID`, not `ID`.** The generated scalar, and what hand-written SDL
   has to declare too, or a variable will not typecheck against it.
@@ -103,7 +123,8 @@ fields and — here — the writes too, for every table in `db/src/relations.ts`
 
 **One entry per person per day, enforced in three places that must agree.** The
 unique constraint `uq_entries_user_date` on `(user_id, entry_date)`, the
-`upsertEntry` conflict target `[userId, entryDate]` in `routes/journal.tsx`, and
+`upsertEntry` conflict target `[userId, entryDate]` in
+`components/entries/entry-form.tsx`, and
 the `key={date}` that remounts the page when the day changes. The client never
 asks whether today already has an entry — it saves, and the conflict target
 decides whether that was an insert or an edit. Change the constraint and the
@@ -117,7 +138,7 @@ from `EntryConflictTarget` (only `exclude` would), which is exactly what makes
 way to say what its own user id is. This is load-bearing; `entries.test.ts` has a
 case for each half.
 
-**Every table needs a `scope` entry.** `server/src/tenancy.ts` maps each table to
+**Every table needs a `scope` entry.** `server/src/graphql/tenancy.ts` maps each table to
 a `RowScope` that is ANDed into the SQL of every generated read, update and
 delete. A table missing from `scope` is visible across tenants, and nothing else
 in the code will say so. `tenancy.test.ts` fails when you forget — do not delete
@@ -133,7 +154,7 @@ west of Greenwich, and that bug shows up as "yesterday's entry is today's".
 
 **The mood scale lives in three places and is 1–5 in all of them.** The check
 constraint `ck_entries_mood_range` in `db/src/models/entries.ts`, `MOOD_MIN` /
-`MOOD_MAX` in `server/src/resolvers/write-guards.ts`, and `MOODS` in
+`MOOD_MAX` in `server/src/entries/input.ts`, and `MOODS` in
 `app/src/lib/mood.ts`. The database is the guarantee; the hook exists only so a
 caller who sent `6` is told the scale rather than handed `violates check
 constraint`. Widening the scale means all three — and a fourth, now that the
@@ -148,8 +169,8 @@ drizzle-graphql maps `PgInteger` to `Int` and lets `smallint` fall through to
 
 **A mood is drawn as its place on the ramp, never as its number.** `MOODS` in
 `app/src/lib/mood.ts` carries the swatch class beside the word, and
-`components/domain/mood-scale.tsx` is the only thing that draws either —
-`MoodDot` for a recorded day in the rail and the cards, `MoodSpectrum` for the
+`components/mood/mood-scale.tsx` is the only thing that draws either —
+`MoodDot` for a recorded day in the sidebar and the cards, `MoodSpectrum` for the
 picker. Two things there are load-bearing. The swatch class repeats itself under
 `focus-visible:` because cubeui's bare `RadioGroupItem` ships a
 `focus-visible:bg-hover` and `tailwind-merge` only resolves a conflict within one
@@ -165,14 +186,14 @@ has to treat "not recorded" as absent, not as a middling 3.
 
 **The `onWrite` hook runs inside the mutation's transaction.** A throw rolls the
 write back, so there is no window between the check and the write. `writtenRows`
-normalises the four shapes a write can arrive in (`values` as a row or a list,
+(`graphql/write-guards.ts`) normalises the four shapes a write can arrive in (`values` as a row or a list,
 `set`, `updates[].set`); a delete writes nothing and is not checked.
 
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
 means sign-in needs no link: `requestMagicLink` returns a live session for
 whatever address it is handed, and the login page uses it (`if (result.token)`).
 `AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
-`magicLinkRequired()` in `config.ts` is where the two meet. Both make an email
+`magicLinkRequired()` in `core/config.ts` is where the two meet. Both make an email
 address the entire credential, so neither belongs on a reachable instance.
 Ephemeris ships no mail provider — `EXPOSE_MAGIC_LINK` returns the link in the
 response so a single-user instance can sign in at all.
@@ -191,11 +212,15 @@ makes a row in "Recent" a plain `<Link>`.
 `app/src/lib/query.ts` reports pending and error only while there is nothing on
 screen.
 
-**Forms are `FormField` + `useState`, not TanStack Form.** cubeui's form skill
-assumes every consuming project runs TanStack Form; `FormField` deliberately
-takes its props structurally so that it does not have to. Engrafo — the newest
-sibling — uses plain state, and one textarea and one radio group is not a reason
-to disagree with it. A form here with real validation across fields would be.
+**Forms run on TanStack Form, through cubeui's `useAppForm`.** A form's values
+are never `useState`: `components/app-form.tsx` is the one file that imports
+`@tanstack/react-form`, and a field is one bound line
+(`<TextareaField form={form} name="body" … />`). A control the registry does
+not ship is bound the same way with `bindToForm` — `mood/mood-field.tsx` is the
+example. Whether the editor has unsaved changes is asked of the server's copy
+(`entries/entry-form.tsx`), not of the form's `isDefaultValue`, which goes
+stale when a touched form is handed a new default. A request that fails is an
+`Alert` in the form, and the submit is `form.SubmitButton`.
 
 **Both `db:up` scripts name their Docker context, and that is not decoration.**
 `db:up` pins `default`, `db:up:lan` pins `docker.lan`. With a remote context
@@ -209,7 +234,7 @@ which is the only way a laptop reaches a database on another host, and is why
 **`.env.local` overrides `.env`, and the load order is inverted between the two
 mechanisms.** `--env-file-if-exists` is *last*-wins, so the package scripts list
 `../.env` then `../.env.local`. `process.loadEnvFile` leaves an already-set
-variable alone, so it is *first*-wins, and `server/src/preload-env.ts`,
+variable alone, so it is *first*-wins, and `server/src/core/preload-env.ts`,
 `db/drizzle.config.ts` and `app/vite.config.ts` all load `.env.local` **first**.
 Getting either one backwards silently ignores the override. Neither beats a real
 exported shell variable, which is the behaviour you want.
@@ -221,7 +246,7 @@ parse custom scalars — so `Date` would be a type that typechecks
 column is `Date` on output, `String!` on input and `StringFilter` in a filter.
 Tracked at https://github.com/cubicecho/drizzle-graphql/issues/174; if that
 lands, revisit this mapping and the `$date: String!` variables in
-`routes/journal.tsx` together.
+`components/entries/entry-form.tsx` together.
 
 **The theme is a device preference, not an account setting.** cubeui owns it:
 `useThemePreference()` (called once, in `ThemeSync` in `main.tsx`) keeps
@@ -237,42 +262,61 @@ update changes one without the other.
 
 **The control is cubeui's `ThemePicker`, in its `compact` variant** — a segmented
 radio group named "Theme". It lives in the sidebar footer beside sign out, which
-is where the mcp-* apps put theirs, in the bar at the widths with no rail, and in
+is where the mcp-* apps put theirs, in the bar at the widths with no sidebar, and in
 the `footerSlot` of the login card so that it works signed out.
 
-**`vitest.setup.ts` shims `localStorage`.** Node 24 defines a `localStorage`
+**`vitest.setup.ts` shims `localStorage`.** Node defines a `localStorage`
 global of its own which is inert without `--localstorage-file` and which shadows
 the one jsdom builds, so in the `dom` project `window.localStorage` is
 `undefined` and anything device-remembered silently exercises only its
-storage-unavailable branch. Also note the two Vitest projects: `app/src/lib/**/*.test.ts`
+storage-unavailable branch. Also note the Vitest projects: `app/src/lib/**/*.test.ts`
 runs under **node**, so a lib test that needs a DOM must be named `.test.tsx`.
 
-**The chrome is cubeui's, not ours.** `components/layouts/app-layout.tsx` fills
+**Every story is a test.** A third Vitest project (`app/vitest.stories.config.ts`)
+runs each `*.stories.tsx` in a real Chromium, after the other two projects and
+never beside them. A story sits next to what it draws, has a `play` function that
+asserts something, and fails on an axe violation (`a11y: { test: 'error' }` in
+`.storybook/preview.tsx`). The preview wraps every story in a mocked Apollo
+client and a router, and the URL it opens on is `parameters.route`. The server
+is mocked one of two ways under `parameters.apolloClient`. `resolvers` is for a
+story whose subject is the page: `graphql-mocks` executes the page's real
+operations against `src/__generated__/schema.graphql` — the server's SDL, copied
+there by `app/codegen.ts` and imported `?raw` — so a query the schema no longer
+allows fails the story, and `journalServer()` keeps what is saved. `mocks` is
+Apollo's `MockedProvider`, for a story whose subject is the request or its
+failure; a request it was not told about fails it. Dates in a story are counted back
+from `todayIso()` (`testing/story-mocks.ts`), never written out, so "Today" is
+true whenever it runs. The default viewport is a phone; a story that needs the
+sidebar sets `globals: DESKTOP`. A package the stories import and Vite has not
+pre-bundled goes in `PREBUNDLED` in the stories config, or a cold cache reloads
+the page under a running story. `components/ui/` gets no stories here.
+
+**The chrome is cubeui's, not ours.** `components/app-shell/app-layout.tsx` fills
 `SidebarLayout` and `Sidebar` and draws nothing of its own, so it reads as one
 set of tools with `mcp-router`, `mcp-skills-manager` and `mcp-zeromem`. Nothing
 here overrides the palette or the body font. A page inside it is a
 `PageLayout width="prose"`.
 
 **`SidebarLayout` draws its bar only below `sidebarHideBelow`.** At `md` and up
-there is a rail and no header at all, so anything the bar says has to be said in
-the rail too — which is why the "N of the last 30 days written" count is both
-the bar's `status` and the heading action of the rail's Recent section.
+there is a sidebar and no header at all, so anything the bar says has to be said in
+the sidebar too — which is why the "N of the last 30 days written" count is both
+the bar's `status` and the heading action of the sidebar's Recent section.
 
-**Rail and bar rows are buttons that cubeui renders, so routing is handed in.**
-`layouts/rail-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
+**Sidebar and bar rows are buttons that cubeui renders, so routing is handed in.**
+`app-shell/sidebar-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
 `useLinkClickHandler` and `active` from the location: a real `<a>` that
 middle-clicks and opens in a tab, without a full page load on a plain click.
 
-What differs is only what fills the rail. Those apps have sections; a journal has
-days, so the rail lists the days and `RecentDaysSection`/`RecentDaysList` are the
-same thirty rows drawn twice — as rail links, and as cards for the widths with no
-rail. Both read one `RecentEntries` document, so the second costs nothing, and
-**a write has to refetch it as well as `JournalDay`** or the rail goes stale.
+What differs is only what fills the sidebar. Those apps have sections; a journal has
+days, so the sidebar lists the days and `RecentDaysSection`/`RecentDaysList` are the
+same thirty rows drawn twice — as sidebar links, and as cards for the widths with no
+sidebar. Both read one `RecentEntries` document, so the second costs nothing, and
+**a write has to refetch it as well as `JournalDay`** or the sidebar goes stale.
 
-**The rail and the mobile bar are the same navigation twice.** A browser shows
+**The sidebar and the mobile bar are the same navigation twice.** A browser shows
 one of them — `hidden` is `display: none`, so the other is out of the
 accessibility tree too — but jsdom applies no stylesheet and sees both. Scope
-every query in a shell test to a landmark (`complementary` for the rail, `banner`
+every query in a shell test to a landmark (`complementary` for the sidebar, `banner`
 for the bar) or it matches twice.
 
 **`app/src/components/ui/` is vendored.** Those files come from the shadcn and
@@ -283,6 +327,50 @@ them into compliance. The cubeui shells one level up (`page-layout.tsx`,
 `*Slot` props that take elements (`contentSlot`, `actionSlot`, `footerSlot`), and
 words are plain props (`title`, `description`, `label`, a `Button`'s `content`).
 `npx biome check --write` after a `shadcn add` is formatting, not editing.
+
+## The server around the schema
+
+**A value someone might tune lives in `core/defaults.ts`** (and `db/src/defaults.ts`),
+as frozen plain data. `core/config.ts` reads the environment over those at call
+time, so a test sees the environment it set. Nothing else reads `process.env`.
+
+**Errors are made in `core/errors.ts`.** `ErrorCode` is the list of
+`extensions.code` values a client branches on, with one factory per code. A
+resolver throws `badInput(…)`, never a bare `GraphQLError`.
+
+**`createApp({ db, limiter, staticDir })` builds the Express app and listens on
+nothing.** `index.ts` is the only file that opens a port, so `http/app.test.ts`
+runs the real app over PGlite. `/healthz` asks Postgres a question and answers
+503 when it does not reply. On SIGTERM `stopOnSignals` stops accepting, drains,
+closes the pool and exits inside Docker's ten seconds.
+
+**One operation is bounded four ways.** A list returns `defaultPageSize` rows and
+refuses a `limit` over `maxPageSize`; `graphql/operation-limits.ts` refuses a
+document that is too deep, too aliased or too costly with `QUERY_TOO_COMPLEX`.
+The numbers are `OPERATION_LIMIT_DEFAULTS`.
+
+**Sign-in is throttled in process, per address and per email.**
+`auth/rate-limit.ts` counts `requestMagicLink` and `verifyMagicLink` attempts
+against `<flow>:ip:<address>` and `<flow>:email:<address>`, and refuses with
+`TOO_MANY_REQUESTS` and a `retryAfter`. The address is only the real client's
+when `TRUST_PROXY` matches the proxy in front; the default is `false`, which is
+right with nothing in front and wrong behind a proxy, where every request
+would share the proxy's address.
+
+**Postgres is waited for, and TLS is decided by where it is.** Boot retries until
+the database answers or `DB_CONNECT_TIMEOUT_MS` passes. `db/src/ssl.ts` insists
+on TLS for a public host and leaves a loopback, LAN or compose-service host
+alone; an explicit `sslmode` in the URL wins either way.
+
+## CI and release
+
+`ci.yml` has three jobs: `check` (codegen, `biome ci`, types, the whole test
+suite, with Chromium installed first for the stories), `postgres` (migrations
+apply to a real Postgres, and `db:generate` produces no diff) and `boot` (the
+image builds, the compose stack comes up healthy, `/healthz` answers).
+`release.yml` runs after a green CI on `main`: semantic-release reads the
+commits, cuts the version, and the image is pushed to
+`ghcr.io/cubicecho/ephemeris`.
 
 ## Where this is going
 
@@ -298,16 +386,22 @@ would make the correlation impossible later.
 - Biome, single quotes, 2-space indent, 120 columns, trailing commas. `npm run check:fix`.
 - `biome.json` is parsed as strict JSON here — **no comments in it**, or Biome
   reports a confusing "nested root configuration" error.
-- `server/` and `db/` run under `--experimental-strip-types` with no build step,
+- `server/` and `db/` are run as TypeScript by Node itself, with no build step,
   so **relative imports there carry an explicit `.ts` extension**. `app/` is
-  bundled by Vite and omits it.
+  bundled by Vite and omits it on `@/` imports.
 - **Never add `--preserve-symlinks`.** It resolves `@cubicecho/ephemeris-db` to
   its path inside `node_modules`, and Node refuses to strip types from anything
   under there.
-- `import './preflight.ts';` stays first in `server/src/index.ts`, separated by a
+- `import './core/preflight.ts';` stays first in `server/src/index.ts`, separated by a
   blank line so Biome's import sorting leaves it there. It has to run before
   `@cubicecho/ephemeris-db` is imported.
-- Comments explain *why*. The code already says what.
+- Comments explain *why*. The code already says what. A module-level function
+  says what it takes and returns in TSDoc; a component says what it is for.
+- A negation is spelled `=== false` against a named boolean. `!` is for a null
+  guard only. `no-negation.grit` enforces it.
+- An app-owned component takes no `children`: regions are `…Slot` props typed
+  `SlotNode`. Colour classes name cubeui's tokens (`text-info`,
+  `border-foreground/10`), not shadcn's aliases.
 
 ## Generated output
 
