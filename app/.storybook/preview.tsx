@@ -15,6 +15,15 @@ interface StoryParameters {
 const DEFAULT_ROUTE = '/';
 
 /**
+ * The two widths the app is drawn at: under `md` the sidebar gives way to a bar. A story picks one with
+ * `globals: { viewport: { value: 'desktop' } }`, and the test run sizes the browser to match.
+ */
+const VIEWPORTS = {
+  phone: { name: 'Phone', styles: { width: '390px', height: '844px' } },
+  desktop: { name: 'Desktop', styles: { width: '1280px', height: '800px' } },
+};
+
+/**
  * The app's providers around every story, including one that asks the server nothing: a mocked Apollo client and a
  * router. Keyed by the story's id, so each story gets a client with an empty cache.
  */
@@ -35,7 +44,9 @@ const preview: Preview = {
     // An unlabelled control or text under 4.5:1 fails the story, the way a crash does.
     a11y: { test: 'error' },
     layout: 'fullscreen',
+    viewport: { options: VIEWPORTS },
   },
+  initialGlobals: { viewport: { value: 'phone', isRotated: false } },
   // The token and the theme live in localStorage, and a story must not inherit the last one's.
   beforeEach: () => {
     window.localStorage.clear();

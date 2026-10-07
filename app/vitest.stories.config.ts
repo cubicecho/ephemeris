@@ -16,12 +16,29 @@ const STORY_TIMEOUT_MS = 30_000;
  */
 const CHROMIUM_ARGS = ['--no-sandbox', '--disable-dev-shm-usage'];
 
+/**
+ * What the stories import that Vite would otherwise find partway through a run. Finding one then reloads the page under
+ * the story that was running and fails it, and a CI runner starts with nothing found.
+ */
+const PREBUNDLED = [
+  '@apollo/client',
+  '@apollo/client/react',
+  '@apollo/client/testing',
+  '@apollo/client/testing/react',
+  '@tanstack/react-form',
+  'class-variance-authority',
+  'cmdk',
+  'lucide-react',
+  'react-router',
+];
+
 // Every story, run as a test in a real Chromium. It merges the app's own Vite config because a story needs the plugins
 // the app is built with: React and Tailwind.
 export default mergeConfig(
   appConfig,
   defineProject({
     plugins: [storybookTest({ configDir: path.join(appDir, '.storybook') })],
+    optimizeDeps: { include: PREBUNDLED },
     test: {
       name: 'stories',
       browser: {

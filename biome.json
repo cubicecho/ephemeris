@@ -55,7 +55,7 @@
       "formatter": { "enabled": false }
     },
     {
-      "includes": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/*.stories.tsx"],
+      "includes": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/*.stories.tsx", "app/src/testing/**"],
       "linter": { "rules": { "style": { "noMagicNumbers": "off" } } }
     },
     {
