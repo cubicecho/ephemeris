@@ -93,7 +93,11 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
   async function submit() {
     await save({
       variables: { date, body, mood: mood === NO_MOOD ? null : Number(mood) },
-    }).then(() => setSaved(true));
+    }).then(
+      () => setSaved(true),
+      // `saveError` says it on the field; the rejection has nowhere else to go.
+      () => undefined,
+    );
   }
 
   return (

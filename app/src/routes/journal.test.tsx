@@ -82,4 +82,21 @@ describe('JournalRoute', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'How the day went' })).toHaveValue('A day.');
   });
+
+  it('says a save failed and keeps what was written', async () => {
+    renderDay({ result: { data: { entry: null } } }, [
+      {
+        request: { query: SAVE_ENTRY, variables: { date: DATE, body: 'A day.', mood: null } },
+        error: new Error('Failed to fetch'),
+      },
+    ]);
+    const body = await screen.findByRole('textbox', { name: 'How the day went' });
+
+    fireEvent.change(body, { target: { value: 'A day.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
+
+    expect(await screen.findByText('Failed to fetch')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'How the day went' })).toHaveValue('A day.');
+    expect(screen.getByRole('button', { name: 'Save entry' })).toBeEnabled();
+  });
 });
