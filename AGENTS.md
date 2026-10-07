@@ -277,9 +277,14 @@ runs each `*.stories.tsx` in a real Chromium, after the other two projects and
 never beside them. A story sits next to what it draws, has a `play` function that
 asserts something, and fails on an axe violation (`a11y: { test: 'error' }` in
 `.storybook/preview.tsx`). The preview wraps every story in a mocked Apollo
-client and a router: a story names the answers it expects under
-`parameters.apolloClient.mocks` and the URL it opens on under `parameters.route`,
-and a request it was not told about fails it. Dates in a story are counted back
+client and a router, and the URL it opens on is `parameters.route`. The server
+is mocked one of two ways under `parameters.apolloClient`. `resolvers` is for a
+story whose subject is the page: `graphql-mocks` executes the page's real
+operations against `src/__generated__/schema.graphql` — the server's SDL, copied
+there by `app/codegen.ts` and imported `?raw` — so a query the schema no longer
+allows fails the story, and `journalServer()` keeps what is saved. `mocks` is
+Apollo's `MockedProvider`, for a story whose subject is the request or its
+failure; a request it was not told about fails it. Dates in a story are counted back
 from `todayIso()` (`testing/story-mocks.ts`), never written out, so "Today" is
 true whenever it runs. The default viewport is a phone; a story that needs the
 sidebar sets `globals: DESKTOP`. A package the stories import and Vite has not

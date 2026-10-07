@@ -28,6 +28,8 @@ const PREBUNDLED = [
   '@tanstack/react-form',
   'class-variance-authority',
   'cmdk',
+  'graphql',
+  'graphql-mocks',
   'lucide-react',
   'react-router',
 ];

@@ -7,6 +7,9 @@ const config: CodegenConfig = {
   documents: ['./src/**/*.ts', './src/**/*.tsx', '!./src/__generated__/**'],
   ignoreNoDocuments: true,
   generates: {
+    // The same SDL, copied to where Vite will serve it: a story runs in a browser and mocks the server from it, and
+    // `../server/…` is not a path a browser can ask for.
+    'src/__generated__/schema.graphql': { plugins: ['schema-ast'] },
     'src/__generated__/': {
       preset: 'client',
       presetConfig: {

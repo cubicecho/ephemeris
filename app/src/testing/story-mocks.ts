@@ -1,6 +1,6 @@
 import type { MockLink } from '@apollo/client/testing';
-import type { JournalDayQuery, RecentEntriesQuery } from '@/__generated__/graphql';
-import { JournalDay } from '@/components/entries/entry-form';
+import type { types } from 'graphql-mocks';
+import type { RecentEntriesQuery } from '@/__generated__/graphql';
 import { RECENT_LIMIT, RecentEntries } from '@/components/entries/recent-days';
 import { shiftDays, todayIso } from '@/lib/date';
 
@@ -31,7 +31,7 @@ export const SOME_DAYS: EntryRow[] = [
 ];
 
 /**
- * The server's answer to the recent-days query.
+ * The server's exact answer to the recent-days query, for a story that pairs requests with answers.
  *
  * @param entries - The days it returns, newest first.
  * @returns A mock that answers once.
@@ -49,13 +49,48 @@ export function recentDaysFailure(): MockLink.MockedResponse {
   return { request: { query: RecentEntries, variables: { limit: RECENT_LIMIT } }, error: new Error('Failed to fetch') };
 }
 
+/** The arguments the journal's three operations send, as far as the mocked server reads them. */
+interface EntryArgs {
+  where: { entryDate: { eq: string } };
+}
+interface EntriesArgs {
+  limit?: number | null;
+}
+interface UpsertEntryArgs {
+  values: { entryDate: string; body: string; mood?: number | null };
+}
+
 /**
- * The server's answer to one day's query.
+ * A mocked server for a story whose subject is the page: it holds days, lists them newest first, and keeps what is
+ * saved, so a page that saves and asks again sees what it wrote.
  *
- * @param date - The day asked for.
- * @param entry - What it holds, or null for a day nothing was written on.
- * @returns A mock that answers once.
+ * @param written - The days it starts with.
+ * @returns The resolvers, as the function `parameters.apolloClient.resolvers` takes. Each call starts from `written`.
  */
-export function journalDayMock(date: string, entry: JournalDayQuery['entry']): MockLink.MockedResponse {
-  return { request: { query: JournalDay, variables: { date } }, result: { data: { entry: entry ?? null } } };
+export function journalServer(written: EntryRow[]): () => types.ResolverMap {
+  return () => {
+    const days = new Map(written.map((row) => [row.entryDate, row]));
+    return {
+      Query: {
+        entry: (_parent: unknown, { where }: EntryArgs) => days.get(where.entryDate.eq) ?? null,
+        entries: (_parent: unknown, { limit }: EntriesArgs) =>
+          [...days.values()]
+            .sort((one, other) => other.entryDate.localeCompare(one.entryDate))
+            .slice(0, limit ?? RECENT_LIMIT),
+      },
+      Mutation: {
+        upsertEntry: (_parent: unknown, { values }: UpsertEntryArgs) => {
+          const row: EntryRow = {
+            __typename: 'Entry',
+            id: `entry-${values.entryDate}`,
+            entryDate: values.entryDate,
+            body: values.body,
+            mood: values.mood ?? null,
+          };
+          days.set(row.entryDate, row);
+          return row;
+        },
+      },
+    };
+  };
 }

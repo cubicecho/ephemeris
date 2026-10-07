@@ -3,13 +3,13 @@ import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
 import { getToken, setToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
-import { DESKTOP, recentDaysMock, SOME_DAYS } from '@/testing/story-mocks';
+import { DESKTOP, journalServer, SOME_DAYS } from '@/testing/story-mocks';
 import { AppLayout } from './app-layout.tsx';
 
 const meta = {
   component: AppLayout,
   args: { contentSlot: <p className="p-6">The page.</p> },
-  parameters: { apolloClient: { mocks: [recentDaysMock(SOME_DAYS)] }, route: `/${todayIso()}` },
+  parameters: { apolloClient: { resolvers: journalServer(SOME_DAYS) }, route: `/${todayIso()}` },
 } satisfies Meta<typeof AppLayout>;
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import { todayIso } from '@/lib/date';
-import { DESKTOP, recentDaysFailure, recentDaysMock, SOME_DAYS } from '@/testing/story-mocks';
+import { DESKTOP, journalServer, recentDaysFailure, SOME_DAYS } from '@/testing/story-mocks';
 import { RecentDaysList, RecentDaysSection } from './recent-days.tsx';
 
 const meta = {
@@ -16,7 +16,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const DaysAsCards: Story = {
-  parameters: { apolloClient: { mocks: [recentDaysMock(SOME_DAYS)] } },
+  parameters: { apolloClient: { resolvers: journalServer(SOME_DAYS) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const cards = await canvas.findAllByRole('link');
@@ -31,7 +31,7 @@ export const DaysAsCards: Story = {
 };
 
 export const NothingWritten: Story = {
-  parameters: { apolloClient: { mocks: [recentDaysMock([])] } },
+  parameters: { apolloClient: { resolvers: journalServer([]) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
@@ -53,7 +53,7 @@ export const FailedToLoad: Story = {
 
 export const DaysInTheSidebar: Story = {
   globals: DESKTOP,
-  parameters: { apolloClient: { mocks: [recentDaysMock(SOME_DAYS)] } },
+  parameters: { apolloClient: { resolvers: journalServer(SOME_DAYS) } },
   render: () => (
     <div className="w-64 p-2">
       <RecentDaysSection today={todayIso()} />

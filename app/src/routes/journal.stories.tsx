@@ -1,14 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
-import { JournalDay, SaveEntry } from '@/components/entries/entry-form';
+import { JournalDay } from '@/components/entries/entry-form';
 import { shiftDays, todayIso } from '@/lib/date';
-import { entryRow, journalDayMock, recentDaysMock } from '@/testing/story-mocks';
+import { entryRow, journalServer, recentDaysMock } from '@/testing/story-mocks';
 import { JournalRoute } from './journal.tsx';
 
 const TODAY = todayIso();
 const LAST_WEEK = entryRow(6, 'Rain all day. Stayed in and read.', 2);
-const WRITTEN_TODAY = entryRow(0, 'A quiet one.', 4);
 
 const meta = {
   component: JournalRoute,
@@ -24,19 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const WritingToday: Story = {
   parameters: {
     route: `/${TODAY}`,
-    apolloClient: {
-      mocks: [
-        journalDayMock(TODAY, null),
-        recentDaysMock([]),
-        {
-          request: { query: SaveEntry, variables: { date: TODAY, body: 'A quiet one.', mood: 4 } },
-          result: { data: { upsertEntry: WRITTEN_TODAY } },
-        },
-        // What the save asks for again: the day, and the days around it.
-        journalDayMock(TODAY, WRITTEN_TODAY),
-        recentDaysMock([WRITTEN_TODAY]),
-      ],
-    },
+    apolloClient: { resolvers: journalServer([]) },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -63,7 +50,7 @@ export const WritingToday: Story = {
 export const AnEarlierDay: Story = {
   parameters: {
     route: `/${LAST_WEEK.entryDate}`,
-    apolloClient: { mocks: [journalDayMock(LAST_WEEK.entryDate, LAST_WEEK), recentDaysMock([LAST_WEEK])] },
+    apolloClient: { resolvers: journalServer([LAST_WEEK]) },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -101,7 +88,7 @@ export const DayFailsToLoad: Story = {
 export const NotADay: Story = {
   parameters: {
     route: '/2026-02-31',
-    apolloClient: { mocks: [journalDayMock(TODAY, null), recentDaysMock([])] },
+    apolloClient: { resolvers: journalServer([]) },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
