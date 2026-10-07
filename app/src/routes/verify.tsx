@@ -16,6 +16,11 @@ export const VerifyMagicLink = graphql(`
   }
 `);
 
+/**
+ * Where a sign-in link lands: trades the link's token for a session, then goes to the journal.
+ *
+ * A link with no token, or one the server refuses, says so and offers the way back to ask for another.
+ */
 export function VerifyPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();

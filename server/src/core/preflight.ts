@@ -11,6 +11,7 @@ const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
  * Stops the process with one readable sentence.
  *
  * @param message - What is wrong and how to fix it.
+ * @returns Never: the process has exited.
  */
 function fatal(message: string): never {
   console.error(`[preflight] ${message}`);

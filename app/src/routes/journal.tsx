@@ -11,6 +11,12 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from '@/components/ui/icons';
 import { formatDay, formatFullDate, isValidIsoDate, shiftDays, todayIso } from '@/lib/date';
 
+/**
+ * The route for one day, `/:date`.
+ *
+ * The page under it is keyed by the date, so moving to another day mounts a fresh editor instead of carrying the last
+ * day's words across.
+ */
 export function JournalRoute() {
   const { date } = useParams();
   const today = todayIso();

@@ -17,6 +17,11 @@ import { createSchema } from '../graphql/build-schema.ts';
 // biome-ignore lint/suspicious/noExplicitAny: db type varies by driver
 export type TestDb = any;
 
+/**
+ * Builds a throwaway in-memory Postgres with the app's schema pushed to it.
+ *
+ * @returns A Drizzle client over it.
+ */
 export async function createTestDb(): Promise<TestDb> {
   const client = new PGlite('memory://');
   const db = drizzle({ client, relations });
@@ -25,7 +30,13 @@ export async function createTestDb(): Promise<TestDb> {
   return db;
 }
 
-/** A user row created straight through Drizzle — signup is not what is under test. */
+/**
+ * Creates a user straight through Drizzle. Signup is not what is under test.
+ *
+ * @param db - The test database.
+ * @param email - The user's address.
+ * @returns The new user's id.
+ */
 export async function createUser(db: TestDb, email: string): Promise<string> {
   const [user] = await db.insert(dbSchema.users).values({ email }).returning();
   return user.id as string;
@@ -52,6 +63,14 @@ export interface ClientDeps {
   ip?: string;
 }
 
+/**
+ * Builds a client that runs operations against the schema directly, with no HTTP in between.
+ *
+ * @param db - The test database.
+ * @param userId - Who the requests come from, or null for a signed-out caller.
+ * @param [deps] - A throttle or a caller address that differs from the defaults.
+ * @returns The three ways to run an operation.
+ */
 export function createClient(db: TestDb, userId: string | null, deps: ClientDeps = {}): TestClient {
   const { schema } = createSchema(db);
   const { limiter = createRateLimiter(), ip = TEST_IP } = deps;
