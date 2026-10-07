@@ -12,6 +12,8 @@ RUN npm run codegen && npm run build:app
 
 # Optional: docker build --target test -t ephemeris-test . && docker run --rm ephemeris-test
 FROM builder AS test
+# The stories run in a real Chromium, and the slim image has neither the browser nor the libraries it links.
+RUN npx playwright install --with-deps chromium
 CMD ["npm", "test"]
 
 FROM node:26-slim AS runtime
