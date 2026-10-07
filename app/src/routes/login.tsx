@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
 import { getToken, setToken } from '@/lib/auth';
 
-const RequestMagicLink = graphql(`
+export const RequestMagicLink = graphql(`
   mutation RequestMagicLink($email: String!) {
     requestMagicLink(email: $email) {
       ok

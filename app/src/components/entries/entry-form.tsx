@@ -26,7 +26,7 @@ export const JournalDay = graphql(`
 // One mutation for both halves of "save what I have for today". The conflict target is the (userId, entryDate) unique
 // constraint: `userId` never leaves the server, so the client names the column without ever supplying a value. `update`
 // lists only the two columns a writer owns, so a re-save cannot touch `id` or `createdAt`.
-const SaveEntry = graphql(`
+export const SaveEntry = graphql(`
   mutation SaveEntry($date: String!, $body: String!, $mood: Int) {
     upsertEntry(
       values: { entryDate: $date, body: $body, mood: $mood }

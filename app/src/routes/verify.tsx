@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { setToken } from '@/lib/auth';
 
-const VerifyMagicLink = graphql(`
+export const VerifyMagicLink = graphql(`
   mutation VerifyMagicLink($token: String!) {
     verifyMagicLink(token: $token) {
       token
