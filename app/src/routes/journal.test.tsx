@@ -4,8 +4,9 @@ import { MockedProvider } from '@apollo/client/testing/react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
+import { JournalDay } from '@/components/entries/entry-form';
 import { RECENT_LIMIT, RecentEntries } from '@/components/entries/recent-days';
-import { JournalDay, JournalRoute } from '@/routes/journal';
+import { JournalRoute } from '@/routes/journal';
 
 const DATE = '2026-09-15';
 // The route does not export its mutation, so the test names the operation it expects on the wire.

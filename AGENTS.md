@@ -192,11 +192,15 @@ makes a row in "Recent" a plain `<Link>`.
 `app/src/lib/query.ts` reports pending and error only while there is nothing on
 screen.
 
-**Forms are `FormField` + `useState`, not TanStack Form.** cubeui's form skill
-assumes every consuming project runs TanStack Form; `FormField` deliberately
-takes its props structurally so that it does not have to. Engrafo — the newest
-sibling — uses plain state, and one textarea and one radio group is not a reason
-to disagree with it. A form here with real validation across fields would be.
+**Forms run on TanStack Form, through cubeui's `useAppForm`.** A form's values
+are never `useState`: `components/app-form.tsx` is the one file that imports
+`@tanstack/react-form`, and a field is one bound line
+(`<TextareaField form={form} name="body" … />`). A control the registry does
+not ship is bound the same way with `bindToForm` — `mood/mood-field.tsx` is the
+example. Whether the editor has unsaved changes is asked of the server's copy
+(`entries/entry-form.tsx`), not of the form's `isDefaultValue`, which goes
+stale when a touched form is handed a new default. A request that fails is an
+`Alert` in the form, and the submit is `form.SubmitButton`.
 
 **Both `db:up` scripts name their Docker context, and that is not decoration.**
 `db:up` pins `default`, `db:up:lan` pins `docker.lan`. With a remote context
