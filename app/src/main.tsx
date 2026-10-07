@@ -15,7 +15,7 @@ import './index.css';
 
 /**
  * No token, no request: an expired one is caught by the error link instead.
- * The app chrome lives behind this, because the rail lists your days and the
+ * The app chrome lives behind this, because the sidebar lists your days and the
  * signed-out screens are a single centred card with nothing to navigate.
  */
 function RequireAuth({ contentSlot }: { contentSlot: SlotNode }) {

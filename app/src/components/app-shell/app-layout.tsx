@@ -37,14 +37,14 @@ interface AppLayoutProps {
 /**
  * The chrome every signed-in screen sits in, and all of it is cubeui's: a
  * `SidebarLayout` with a `Sidebar` of days at the start edge, and — under `md`,
- * where a rail has no room — the layout's own bar standing in for it.
+ * where a sidebar has no room — the layout's own bar standing in for it.
  *
- * What fills the rail is the only thing that is this app's. Other tools have
+ * What fills the sidebar is the only thing that is this app's. Other tools have
  * sections; a journal has days, so the days are the navigation.
  *
  * The bar exists only under the breakpoint, so the count of days written is said
  * twice: as the bar's `status` on a phone, and by the Recent section's heading
- * in the rail.
+ * in the sidebar.
  */
 export function AppLayout({ contentSlot }: AppLayoutProps) {
   const today = todayIso();

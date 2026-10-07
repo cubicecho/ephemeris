@@ -5,7 +5,7 @@ import { BarNavItem, SidebarNavItem } from '@/components/sidebar';
 type SidebarLinkProps = Pick<ComponentProps<typeof SidebarNavItem>, 'label' | 'iconSlot' | 'status'> & { to: string };
 
 /**
- * cubeui's rail row, bound to react-router. The row is a real `<a href>` — so
+ * cubeui's sidebar row, bound to react-router. The row is a real `<a href>` — so
  * middle-click, copy-link and the status bar all work — and the router only
  * takes over the plain left click, which is what `useLinkClickHandler` is.
  * `active` is the URL's own answer rather than state: every day is a URL.

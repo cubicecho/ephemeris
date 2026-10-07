@@ -14,7 +14,7 @@ const DAYS = [
 
 /**
  * The day the fixtures are written against. `AppLayout` reads the clock itself —
- * `todayIso()`, not a prop — so the rail's "Today" link and the row that says
+ * `todayIso()`, not a prop — so the sidebar's "Today" link and the row that says
  * "Today" rather than a date both depend on it, and a test that only set the
  * route was a test that passed on the 15th of September 2026 and never again.
  */
@@ -41,35 +41,35 @@ function renderShell(today = TODAY) {
   );
 }
 
-// The rail and the mobile bar are the same navigation twice, and a browser shows
+// The sidebar and the mobile bar are the same navigation twice, and a browser shows
 // exactly one of them — `hidden` is `display: none`, so the other is not in the
 // accessibility tree either. jsdom applies no stylesheet and therefore sees
 // both, which is why every query here is scoped to one landmark.
 describe('AppLayout', () => {
   // A smoke test, and it earns its keep: the shell is the one component every
-  // signed-in screen goes through, and its parts (the rail, the header count,
+  // signed-in screen goes through, and its parts (the sidebar, the header count,
   // the theme control) each lean on something outside it — the router, Apollo,
   // the device's storage.
   it('draws the chrome around the page', async () => {
     renderShell();
-    const rail = screen.getByRole('complementary');
+    const sidebar = screen.getByRole('complementary');
 
     expect(screen.getByText('the page')).toBeInTheDocument();
-    expect(within(rail).getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
-    expect(within(rail).getByRole('navigation', { name: 'Recent days' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('navigation', { name: 'Recent days' })).toBeInTheDocument();
   });
 
-  it('puts today at the top of the rail and counts the days in the header', async () => {
+  it('puts today at the top of the sidebar and counts the days in the header', async () => {
     renderShell();
-    const rail = screen.getByRole('complementary');
+    const sidebar = screen.getByRole('complementary');
 
-    expect(within(rail).getByRole('link', { name: 'Today' })).toHaveAttribute('href', `/${TODAY}`);
-    // The 15th is today, so the rail says "Today" rather than the date; the
+    expect(within(sidebar).getByRole('link', { name: 'Today' })).toHaveAttribute('href', `/${TODAY}`);
+    // The 15th is today, so the sidebar says "Today" rather than the date; the
     // 14th is not, so it says the day. The mood rides along as a swatch, whose
-    // only text is the word behind it — said once, by the row — and the rail
+    // only text is the word behind it — said once, by the row — and the sidebar
     // draws no number.
-    const days = within(rail).getByRole('navigation', { name: 'Recent days' });
+    const days = within(sidebar).getByRole('navigation', { name: 'Recent days' });
     expect((await within(days).findAllByRole('link')).map((link) => link.textContent)).toEqual([
       'TodayGood',
       'Yesterday',
@@ -99,11 +99,11 @@ describe('AppLayout', () => {
         </MemoryRouter>
       </MockedProvider>,
     );
-    const rail = screen.getByRole('complementary');
-    await within(rail).findByText('2 of the last 30 days written');
+    const sidebar = screen.getByRole('complementary');
+    await within(sidebar).findByText('2 of the last 30 days written');
     expect(Object.keys(client?.extract() ?? {})).not.toHaveLength(0);
 
-    fireEvent.click(within(rail).getByRole('button', { name: 'Sign out' }));
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Sign out' }));
 
     await waitFor(() => expect(client?.extract()).toEqual({}));
   });

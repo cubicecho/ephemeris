@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 export const RECENT_LIMIT = 30;
 
 /**
- * Its own document rather than a field on `JournalDay`, because the rail draws
+ * Its own document rather than a field on `JournalDay`, because the sidebar draws
  * it beside every day and the page draws it under one. Apollo normalises both
  * onto the same cached rows, so the second caller costs nothing.
  */
@@ -96,8 +96,8 @@ export function RecentDaysSection({ today }: { today: string }) {
 }
 
 /**
- * The same days as cards, for the screens too narrow to have a rail. Kept in one
- * file with the rail so the two cannot drift about what "recent" means.
+ * The same days as cards, for the screens too narrow to have a sidebar. Kept in one
+ * file with the sidebar so the two cannot drift about what "recent" means.
  *
  * Each card is one plain link — `Item asChild` over a `NavLink` — rather than a
  * row with a button in it: every day is a URL, and a card you can middle-click

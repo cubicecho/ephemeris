@@ -96,8 +96,8 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
         <div className="flex flex-col gap-6">
           <DayEntry date={date} />
 
-          {/* The rail already lists these; this is the same list for the widths that
-              have no rail. */}
+          {/* The sidebar already lists these; this is the same list for the widths that
+              have no sidebar. */}
           <Section
             className="md:hidden"
             title="Recent"
