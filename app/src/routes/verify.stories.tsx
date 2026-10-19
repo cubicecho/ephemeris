@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, within } from 'storybook/test';
 import { getToken } from '@/lib/auth';
-import { VerifyMagicLink, VerifyPage } from './verify.tsx';
+import { MagicLinkVerify, VerifyPage } from './verify.tsx';
 
-const REQUEST = { query: VerifyMagicLink, variables: { token: 'a-link-token' } };
+const REQUEST = { query: MagicLinkVerify, variables: { token: 'a-link-token' } };
 const INVALID = 'This sign-in link is invalid or has expired.';
 
 const meta = {
@@ -26,7 +26,7 @@ export const SignsIn: Story = {
       mocks: [
         {
           request: REQUEST,
-          result: { data: { verifyMagicLink: { token: 'a-session-token', userId: 'user-1' } } },
+          result: { data: { magicLinkVerify: { token: 'a-session-token' } } },
         },
       ],
     },
@@ -44,7 +44,7 @@ export const StillSigningIn: Story = {
         {
           request: REQUEST,
           delay: Number.POSITIVE_INFINITY,
-          result: { data: { verifyMagicLink: { token: 'a-session-token', userId: 'user-1' } } },
+          result: { data: { magicLinkVerify: { token: 'a-session-token' } } },
         },
       ],
     },

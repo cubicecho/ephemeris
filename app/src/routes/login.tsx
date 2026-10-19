@@ -10,10 +10,10 @@ import { ThemePicker } from '@/components/ui/theme-picker';
 import { BookOpen } from '@/lib/app-icons';
 import { getToken, setToken } from '@/lib/auth';
 
-export const RequestMagicLink = graphql(`
-  mutation RequestMagicLink($email: String!) {
-    requestMagicLink(email: $email) {
-      ok
+export const SignInMagicLink = graphql(`
+  mutation SignInMagicLink($email: String!) {
+    signInMagicLink(email: $email) {
+      status
       magicLink
       token
     }
@@ -53,18 +53,18 @@ export function LoginPage() {
 /** The form that asks for a sign-in link. `onSent` is called with the link once the server has taken the request. */
 function RequestLink({ onSent }: { onSent: (sent: SentLink) => void }) {
   const navigate = useNavigate();
-  const [requestLink, { error }] = useMutation(RequestMagicLink);
+  const [requestLink, { error }] = useMutation(SignInMagicLink);
 
   const form = useAppForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       // A refused request is said by `error` below; the rejection has nowhere else to go.
       const result = await requestLink({ variables: { email: value.email } }).catch(() => null);
-      const link = result?.data?.requestMagicLink;
+      const link = result?.data?.signInMagicLink;
       if (!link) {
         return;
       }
-      // AUTH_MAGIC_LINK=false: the server signed us straight in.
+      // SECURE_LOCAL_NET or AUTH_MAGIC_LINK=false: the server signed us straight in.
       if (link.token) {
         setToken(link.token);
         navigate('/', { replace: true });

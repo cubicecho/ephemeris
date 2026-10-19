@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
     "./relations": "./src/relations.ts",
+    "./ssl": "./src/ssl.ts",
     "./wait": "./src/wait.ts",
     "./defaults": "./src/defaults.ts"
   },

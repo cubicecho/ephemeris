@@ -1,5 +1,6 @@
-import { useApolloClient } from '@apollo/client/react';
+import { useApolloClient, useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router';
+import { graphql } from '@/__generated__';
 import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
 import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/entries/recent-days';
 import { Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
@@ -11,8 +12,17 @@ import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';
 
+export const SignOut = graphql(`
+  mutation SignOut {
+    signOut {
+      success
+    }
+  }
+`);
+
 /**
- * Signing out, for shared machines: forgets the token and the cached entries, then goes to the login screen.
+ * Signing out, for shared machines: ends the session on the server, forgets the token and the cached entries, then
+ * goes to the login screen.
  *
  * The cache goes too because it outlives the token. Without that the next person to sign in on this tab is shown the
  * last person's days until their own arrive.
@@ -22,7 +32,10 @@ import type { SlotNode } from '@/lib/utils';
 function useSignOut(): () => Promise<void> {
   const navigate = useNavigate();
   const client = useApolloClient();
+  const [endSession] = useMutation(SignOut);
   return async () => {
+    // Leaving must not depend on the server answering: the token is dropped either way.
+    await endSession().catch(() => null);
     clearToken();
     await client.clearStore();
     navigate('/login', { replace: true });

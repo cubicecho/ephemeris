@@ -1,7 +1,7 @@
 // Getters, not constants, so a test (or a reload) sees the current environment.
 import { createRequire } from 'node:module';
 import { DATABASE_DEFAULTS } from '@cubicecho/ephemeris-db/defaults';
-import { AUTH_DEFAULTS, ENTRY_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
+import { AUTH_DEFAULTS, type AuthSettings, ENTRY_DEFAULTS, HTTP_DEFAULTS } from './defaults.ts';
 
 /** Env values that count as on, in lower case. */
 const TRUTHY = ['1', 'true', 'yes'];
@@ -14,9 +14,36 @@ const TRUST_PROXY_OFF = 'false';
 const TRUST_PROXY_ON = 'true';
 /** A whole number of proxy hops. */
 const HOP_COUNT = /^\d+$/;
+/** The slashes a URL may end in, which every URL here is compared and joined without. */
+const TRAILING_SLASHES = /\/+$/;
 
-/** What tokens are signed with outside production when `JWT_SECRET` is unset. Preflight refuses it in production. */
+/** What better-auth signs with outside production when no secret is set. Preflight refuses it in production. */
 export const DEV_SECRET = 'dev-secret-change-in-production';
+/** The value `.env.example` ships. Public, so as good as no secret at all. */
+export const PLACEHOLDER_SECRET = 'change-me-to-a-long-random-string';
+
+/**
+ * Why `secret` must not sign production sessions, or undefined when it may.
+ *
+ * @param secret - The secret as set.
+ * @returns The reason, as the end of a sentence ("is not set").
+ *
+ * @remarks
+ * better-auth signs with this and nothing else, so a secret that is published or short enough to guess lets anyone
+ * forge what it signs: the OIDC state cookie among them.
+ */
+export function describeWeakSecret(secret: string | undefined): string | undefined {
+  if (secret === undefined || secret === '') {
+    return 'is not set';
+  }
+  if (secret === DEV_SECRET || secret === PLACEHOLDER_SECRET) {
+    return 'is a published default';
+  }
+  if (secret.length < AUTH_DEFAULTS.minSecretLength) {
+    return `is shorter than ${AUTH_DEFAULTS.minSecretLength} characters`;
+  }
+  return undefined;
+}
 
 /**
  * Lower-cases and trims a raw env value.
@@ -86,12 +113,19 @@ export const isProduction = (): boolean => process.env.NODE_ENV === NODE_ENV_PRO
 export const secureLocalNet = (): boolean => envFlag(process.env.SECURE_LOCAL_NET, AUTH_DEFAULTS.secureLocalNet);
 
 /**
+ * Whether a public `APP_URL` is accepted alongside a sign-in that needs no link.
+ *
+ * @returns `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` as a flag, off when unset.
+ */
+export const allowsPublicLocalNet = (): boolean => envFlag(process.env.I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC, false);
+
+/**
  * Whether signing in requires following a magic link at all.
  *
  * @returns False under `SECURE_LOCAL_NET=true` or the narrower `AUTH_MAGIC_LINK=false`, otherwise `AUTH_DEFAULTS.magicLinkRequired`.
  *
  * @remarks
- * Off, `requestMagicLink` hands back a live session for whatever address it is given. Never off on an instance the
+ * Off, `signInMagicLink` hands back a live session for whatever address it is given. Never off on an instance the
  * internet can reach: the email address becomes the entire credential.
  */
 export const magicLinkRequired = (): boolean =>
@@ -106,11 +140,20 @@ export const magicLinkExposed = (): boolean =>
   isProduction() === false || envFlag(process.env.EXPOSE_MAGIC_LINK, false);
 
 /**
- * The secret session and magic-link tokens are signed with.
+ * The signing secret exactly as set, for preflight to judge.
  *
- * @returns `JWT_SECRET`, or `DEV_SECRET` when unset.
+ * @returns `BETTER_AUTH_SECRET`, or the older `JWT_SECRET` an instance from before better-auth was set up with, or
+ *   undefined when neither is set.
  */
-export const jwtSecret = (): string => process.env.JWT_SECRET ?? DEV_SECRET;
+export const configuredAuthSecret = (): string | undefined =>
+  process.env.BETTER_AUTH_SECRET || process.env.JWT_SECRET || undefined;
+
+/**
+ * What better-auth signs with. Read at call time, so a test sees the environment it set.
+ *
+ * @returns The configured secret, or `DEV_SECRET` when unset, so development needs no .env entry.
+ */
+export const authSecret = (): string => configuredAuthSecret() ?? DEV_SECRET;
 
 /**
  * The port to listen on.
@@ -124,7 +167,68 @@ export const port = (): number => envNumber(process.env.PORT, HTTP_DEFAULTS.port
  *
  * @returns `APP_URL`, or localhost on the listen port, which is only right for someone browsing from this machine.
  */
-export const appUrl = (): string => process.env.APP_URL ?? `http://localhost:${port()}`;
+export const appUrl = (): string => (process.env.APP_URL ?? `http://localhost:${port()}`).replace(TRAILING_SLASHES, '');
+
+/**
+ * Where a browser reaches this server: the OIDC sign-in's start and callback live here.
+ *
+ * @returns `SERVER_URL`, `APP_URL` in production (the server serves the app, so they are one origin), or this
+ *   server's own localhost address in development, where Vite serves the app from a port of its own.
+ */
+export function serverUrl(): string {
+  const configured = (process.env.SERVER_URL ?? '').trim().replace(TRAILING_SLASHES, '');
+  if (configured !== '') {
+    return configured;
+  }
+  return isProduction() ? appUrl() : `http://localhost:${port()}`;
+}
+
+/** The id the OIDC provider is registered under in better-auth, and so the last part of its callback path. */
+export const OIDC_PROVIDER_ID = 'oidc';
+/** The `OIDC_CLIENT_AUTH` values a provider can expect. */
+export const OIDC_CLIENT_AUTH_METHODS = ['client_secret_basic', 'client_secret_post'] as const;
+
+/** An OpenID Connect provider to sign in with: heautou, Keycloak, Authentik, … */
+export interface OidcConfig {
+  /** The issuer URL, no trailing slash. Its discovery document is `/.well-known/openid-configuration` under it. */
+  issuer: string;
+  clientId: string;
+  /** Unset for a public client, which proves itself with PKCE alone. */
+  clientSecret: string | undefined;
+  /** How a confidential client sends its secret. The provider must expect the same. */
+  clientAuth: AuthSettings['oidcClientAuth'];
+  /** What the login page's button calls the provider. */
+  name: string;
+}
+
+/**
+ * Reads the OIDC provider set in the environment. Preflight refuses one of `OIDC_ISSUER` and `OIDC_CLIENT_ID`
+ * without the other, and an `OIDC_CLIENT_AUTH` it does not know.
+ *
+ * @returns The provider when `OIDC_ISSUER` and `OIDC_CLIENT_ID` are both set, otherwise null.
+ */
+export function oidcConfig(): OidcConfig | null {
+  const issuer = (process.env.OIDC_ISSUER ?? '').trim();
+  const clientId = (process.env.OIDC_CLIENT_ID ?? '').trim();
+  if (issuer === '' || clientId === '') {
+    return null;
+  }
+  const clientAuth = (process.env.OIDC_CLIENT_AUTH ?? '').trim();
+  return {
+    issuer: issuer.replace(TRAILING_SLASHES, ''),
+    clientId,
+    clientSecret: (process.env.OIDC_CLIENT_SECRET ?? '').trim() || undefined,
+    clientAuth: clientAuth === 'client_secret_post' ? clientAuth : AUTH_DEFAULTS.oidcClientAuth,
+    name: (process.env.OIDC_NAME ?? '').trim() || AUTH_DEFAULTS.oidcName,
+  };
+}
+
+/**
+ * Names the address to register with the OIDC provider as this client's redirect URI.
+ *
+ * @returns better-auth's callback for the provider, under `serverUrl()`.
+ */
+export const oidcRedirectUri = (): string => `${serverUrl()}/api/auth/callback/${OIDC_PROVIDER_ID}`;
 
 /**
  * Largest entry body accepted, in characters. A cap on a text column anyone signed in may write to.

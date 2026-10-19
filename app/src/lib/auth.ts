@@ -1,12 +1,13 @@
-// The session token lives in localStorage rather than a cookie: the API is a
-// Bearer-token GraphQL endpoint with no session table, and in development the
-// bundle is served by Vite on a different port from the server.
+// The session is better-auth's, kept in Postgres on the server; what the client holds is that session's token, sent
+// back as `Authorization: Bearer`. It lives in localStorage rather than a cookie because the API takes bearer
+// tokens and nothing else, and in development the bundle is served by Vite on a different port from the server.
+// Signing out ends the session on the server too (`signOut`), so a copied token stops working.
 const TOKEN_KEY = 'ephemeris_token';
 
 /**
  * Reads the session token.
  *
- * @returns The token, or null when there is none or the browser blocks storage.
+ * @returns The token, or null when there is none or the browser blocks storage. It may still have expired.
  */
 export function getToken(): string | null {
   try {

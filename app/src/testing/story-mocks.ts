@@ -90,6 +90,7 @@ export function journalServer(written: EntryRow[]): () => types.ResolverMap {
           days.set(row.entryDate, row);
           return row;
         },
+        signOut: () => ({ success: true }),
       },
     };
   };

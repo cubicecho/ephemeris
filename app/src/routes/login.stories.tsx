@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Route, Routes } from 'react-router';
 import { expect, userEvent, within } from 'storybook/test';
 import { getToken, setToken } from '@/lib/auth';
-import { LoginPage, RequestMagicLink } from './login.tsx';
+import { LoginPage, SignInMagicLink } from './login.tsx';
 
 const EMAIL = 'writer@example.com';
-const REQUEST = { query: RequestMagicLink, variables: { email: EMAIL } };
+const REQUEST = { query: SignInMagicLink, variables: { email: EMAIL } };
 
 const meta = {
   component: LoginPage,
@@ -34,7 +34,9 @@ async function askForALink(canvasElement: HTMLElement): Promise<void> {
 export const LinkByEmail: Story = {
   parameters: {
     apolloClient: {
-      mocks: [{ request: REQUEST, result: { data: { requestMagicLink: { ok: true, magicLink: null, token: null } } } }],
+      mocks: [
+        { request: REQUEST, result: { data: { signInMagicLink: { status: true, magicLink: null, token: null } } } },
+      ],
     },
   },
   play: async ({ canvasElement }) => {
@@ -59,8 +61,8 @@ export const LinkOnTheScreen: Story = {
           request: REQUEST,
           result: {
             data: {
-              requestMagicLink: {
-                ok: true,
+              signInMagicLink: {
+                status: true,
                 magicLink: 'http://localhost:3005/auth/verify?token=a-link-token',
                 token: null,
               },
@@ -89,7 +91,7 @@ export const SignedStraightIn: Story = {
       mocks: [
         {
           request: REQUEST,
-          result: { data: { requestMagicLink: { ok: true, magicLink: null, token: 'a-session-token' } } },
+          result: { data: { signInMagicLink: { status: true, magicLink: null, token: 'a-session-token' } } },
         },
       ],
     },

@@ -7,11 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { setToken } from '@/lib/auth';
 
-export const VerifyMagicLink = graphql(`
-  mutation VerifyMagicLink($token: String!) {
-    verifyMagicLink(token: $token) {
+export const MagicLinkVerify = graphql(`
+  mutation MagicLinkVerify($token: String!) {
+    magicLinkVerify(token: $token) {
       token
-      userId
     }
   }
 `);
@@ -25,7 +24,7 @@ export function VerifyPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const token = params.get('token');
-  const [verify, { error }] = useMutation(VerifyMagicLink);
+  const [verify, { error }] = useMutation(MagicLinkVerify);
   // StrictMode mounts effects twice in development; verify once.
   const started = useRef(false);
 
@@ -39,7 +38,7 @@ export function VerifyPage() {
         if (!data) {
           return;
         }
-        setToken(data.verifyMagicLink.token);
+        setToken(data.magicLinkVerify.token);
         navigate('/', { replace: true });
       })
       .catch(() => {});

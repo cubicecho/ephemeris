@@ -58,11 +58,42 @@ function isPrivateIpv4(first: number, second: number): boolean {
 }
 
 /**
+ * Whether a host can only be reached from a private network.
+ *
+ * "Private" is wider than loopback here, because self-hosting is. A bare `postgres` is a service on a compose
+ * network, `10.0.0.5` is a box on the LAN and `db.lan` is its name.
+ *
+ * @param host - A hostname or IP address, as `URL.hostname` gives it. Brackets and case are ignored.
+ * @returns true for loopback, RFC 1918, link-local and unique-local addresses, a dotless name, or a private suffix.
+ */
+export function isPrivateHost(host: string): boolean {
+  const hostname = host.replace(/^\[|\]$/g, '').toLowerCase();
+  const isPrivateName = hostname === LOCALHOST || PRIVATE_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+  if (isPrivateName) {
+    return true;
+  }
+  // A name with no dots is a container or LAN hostname, not a public address.
+  const isBareName = hostname.includes('.') === false && hostname.includes(':') === false;
+  if (isBareName) {
+    return true;
+  }
+
+  const ipv4 = IPV4.exec(hostname);
+  if (ipv4?.groups) {
+    return isPrivateIpv4(Number(ipv4.groups.first), Number(ipv4.groups.second));
+  }
+
+  if (hostname.includes(':')) {
+    return hostname === IPV6_LOOPBACK || IPV6_UNIQUE_LOCAL.test(hostname) || IPV6_LINK_LOCAL.test(hostname);
+  }
+
+  return false;
+}
+
+/**
  * Whether to insist on TLS for a connection string.
  *
- * "Local" is wider than loopback here, because self-hosting is. A bare `postgres` is a service on a compose network,
- * `10.0.0.5` is a box on the LAN and `db.lan` is its name: none speaks TLS by default, and demanding it breaks the
- * connection.
+ * Not for a private host: none speaks TLS by default there, and demanding it breaks the connection.
  *
  * @param url - Connection URL.
  * @returns false for an explicit sslmode, an unparseable URL, or a private or local host.
@@ -77,27 +108,5 @@ export function requiresSsl(url: string): boolean {
   if (hostname === null) {
     return false;
   }
-
-  const isPrivateName = hostname === LOCALHOST || PRIVATE_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
-  if (isPrivateName) {
-    return false;
-  }
-  // A name with no dots is a container or LAN hostname, not a public address.
-  const isBareName = hostname.includes('.') === false && hostname.includes(':') === false;
-  if (isBareName) {
-    return false;
-  }
-
-  const ipv4 = IPV4.exec(hostname);
-  if (ipv4?.groups) {
-    return isPrivateIpv4(Number(ipv4.groups.first), Number(ipv4.groups.second)) === false;
-  }
-
-  if (hostname.includes(':')) {
-    const isLocalIpv6 =
-      hostname === IPV6_LOOPBACK || IPV6_UNIQUE_LOCAL.test(hostname) || IPV6_LINK_LOCAL.test(hostname);
-    return isLocalIpv6 === false;
-  }
-
-  return true;
+  return isPrivateHost(hostname) === false;
 }

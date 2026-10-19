@@ -7,7 +7,7 @@ export interface RateLimiter {
   /**
    * Records one attempt against every key, or records nothing and throws.
    *
-   * @param keys - For example `requestMagicLink:ip:203.0.113.7` and `requestMagicLink:email:a@x.com`.
+   * @param keys - For example `sign-in-magic-link:ip:203.0.113.7` and `sign-in-magic-link:email:a@x.com`.
    * @throws A TOO_MANY_REQUESTS error when any key is already at its budget.
    */
   hit(...keys: string[]): void;
