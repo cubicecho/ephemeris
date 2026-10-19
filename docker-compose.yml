@@ -8,8 +8,11 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment:
-      # Required. The server refuses to start in production without it. JWT_SECRET is the older name, still read.
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-${JWT_SECRET:?BETTER_AUTH_SECRET is required. Generate one with `openssl rand -hex 32`}}
+      # Required: the server refuses to start in production without one. Generate it with `openssl rand -hex 32`.
+      # JWT_SECRET is the older name, still read when BETTER_AUTH_SECRET is unset. The two are passed separately
+      # because Compose evaluates a nested `${JWT_SECRET:?…}` even when BETTER_AUTH_SECRET is set.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      JWT_SECRET: ${JWT_SECRET:-}
       DATABASE_URL: postgres://ephemeris:${POSTGRES_PASSWORD:-ephemeris}@postgres:5432/ephemeris
       # The address people type. Magic links are built from it, so a wrong value is a link that goes nowhere.
       APP_URL: ${APP_URL:-http://localhost:3005}
