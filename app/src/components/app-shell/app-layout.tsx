@@ -1,12 +1,12 @@
 import { useApolloClient } from '@apollo/client/react';
-import { BookOpen, CalendarDays, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { ActionButton } from '@/components/action-button';
 import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
 import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/entries/recent-days';
 import { Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
+import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
+import { BookOpen, CalendarDays, LogOut } from '@/lib/app-icons';
 import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';
@@ -89,9 +89,9 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
       status={data ? `${data.entries.length} of the last ${RECENT_LIMIT} days written` : undefined}
       actionSlot={[
         <ThemePicker key="theme" variant="compact" className="w-28" />,
-        <ActionButton
+        <Button
           key="sign-out"
-          label="Sign out"
+          aria-label="Sign out"
           variant="outline"
           size="icon-sm"
           iconSlot={<LogOut />}

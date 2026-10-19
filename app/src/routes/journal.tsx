@@ -1,6 +1,5 @@
 import { useQuery } from '@apollo/client/react';
 import { Link, Navigate, useParams } from 'react-router';
-import { ActionButton } from '@/components/action-button';
 import { CardLayout } from '@/components/card-layout';
 import { EntryForm, JournalDay } from '@/components/entries/entry-form';
 import { RECENT_LIMIT, RecentDaysList } from '@/components/entries/recent-days';
@@ -60,8 +59,8 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
       description={date === today ? formatFullDate(date) : `${formatFullDate(date)} · not today`}
       actionSlot={
         <>
-          <ActionButton
-            label="Previous day"
+          <Button
+            aria-label="Previous day"
             variant="outline"
             size="icon-sm"
             iconSlot={<ChevronLeft />}
@@ -70,8 +69,8 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
           {date >= today ? (
             // A journal has nothing to say about tomorrow, so there is no link
             // to it at all — a disabled anchor is still an anchor.
-            <ActionButton
-              label="Next day"
+            <Button
+              aria-label="Next day"
               variant="outline"
               size="icon-sm"
               iconSlot={<ChevronRight />}
@@ -79,8 +78,8 @@ function JournalDayPage({ date, today }: { date: string; today: string }) {
               hint="Tomorrow has not happened yet"
             />
           ) : (
-            <ActionButton
-              label="Next day"
+            <Button
+              aria-label="Next day"
               variant="outline"
               size="icon-sm"
               iconSlot={<ChevronRight />}

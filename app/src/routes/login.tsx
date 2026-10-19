@@ -1,5 +1,4 @@
 import { useMutation } from '@apollo/client/react';
-import { BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
@@ -8,6 +7,7 @@ import { CenteredLayout } from '@/components/centered-layout';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
+import { BookOpen } from '@/lib/app-icons';
 import { getToken, setToken } from '@/lib/auth';
 
 export const RequestMagicLink = graphql(`
