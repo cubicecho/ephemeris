@@ -1,5 +1,4 @@
 import { useApolloClient } from '@apollo/client/react';
-import { BookOpen, CalendarDays, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
 import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/entries/recent-days';
@@ -7,6 +6,7 @@ import { Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
+import { BookOpen, CalendarDays, LogOut } from '@/lib/app-icons';
 import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';

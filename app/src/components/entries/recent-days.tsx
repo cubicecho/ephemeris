@@ -1,5 +1,4 @@
 import { useQuery } from '@apollo/client/react';
-import { BookOpen } from 'lucide-react';
 import { NavLink } from 'react-router';
 import { graphql } from '@/__generated__';
 import { SidebarLink } from '@/components/app-shell/sidebar-link';
@@ -8,6 +7,7 @@ import { EmptyState } from '@/components/page';
 import { QueryState } from '@/components/query-state';
 import { SidebarSection } from '@/components/sidebar';
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
+import { BookOpen } from '@/lib/app-icons';
 import { formatDay, formatFullDate } from '@/lib/date';
 import { moodLabel } from '@/lib/mood';
 import { queryLike } from '@/lib/query';
