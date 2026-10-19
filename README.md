@@ -2,6 +2,8 @@
 
 A minimal daily journal. One entry a day, a mood with it, and nothing else.
 
+**Site:** <https://cubicecho.github.io/ephemeris/>
+
 Open it and you are on today. Write what happened, optionally say how the day
 was on a scale of 1 to 5, and save. Tomorrow is a different URL. Saving the same
 day twice edits the entry you already had — the day is the key, so there is
