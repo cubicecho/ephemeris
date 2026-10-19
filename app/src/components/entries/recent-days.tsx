@@ -2,11 +2,12 @@ import { useQuery } from '@apollo/client/react';
 import { NavLink } from 'react-router';
 import { graphql } from '@/__generated__';
 import { SidebarLink } from '@/components/app-shell/sidebar-link';
+import { EmptyState } from '@/components/empty-state';
+import { List } from '@/components/list';
+import { ListItem } from '@/components/list-item';
 import { MoodDot } from '@/components/mood/mood-scale';
-import { EmptyState } from '@/components/page';
 import { QueryState } from '@/components/query-state';
 import { SidebarSection } from '@/components/sidebar';
-import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item';
 import { BookOpen } from '@/lib/app-icons';
 import { formatDay, formatFullDate } from '@/lib/date';
 import { moodLabel } from '@/lib/mood';
@@ -99,9 +100,10 @@ export function RecentDaysSection({ today }: { today: string }) {
  * The same days as cards, for the screens too narrow to have a sidebar. Kept in one
  * file with the sidebar so the two cannot drift about what "recent" means.
  *
- * Each card is one plain link — `Item asChild` over a `NavLink` — rather than a
- * row with a button in it: every day is a URL, and a card you can middle-click
- * is the whole point of that.
+ * Each card is a `ListItem` whose middle is one plain link — a `NavLink` in its
+ * `linkSlot` — rather than a row with a button in it: every day is a URL, and a
+ * card you can middle-click is the whole point of that. The mood is the row's
+ * `meta`, which sits inside the link and is read as part of it.
  */
 export function RecentDaysList({ className }: { className?: string }) {
   const result = useRecentEntries();
@@ -115,25 +117,26 @@ export function RecentDaysList({ className }: { className?: string }) {
         count={entries.length}
         emptySlot={
           <EmptyState
-            icon={BookOpen}
+            iconSlot={<BookOpen />}
             title="Nothing written yet"
             description="Today's entry will show up here once you save it."
           />
         }
       />
-      {entries.map((entry) => (
-        <Item key={entry.id} asChild variant="outline">
-          <NavLink to={`/${entry.entryDate}`}>
-            <ItemContent>
-              <ItemTitle>
-                {formatFullDate(entry.entryDate)}
-                <MoodDot mood={entry.mood} wording="printed" className="ml-2" />
-              </ItemTitle>
-              <ItemDescription>{entry.body.trim() || 'No words that day.'}</ItemDescription>
-            </ItemContent>
-          </NavLink>
-        </Item>
-      ))}
+      <List
+        // Each row is a card of its own, so a rule between them would be a second border.
+        divided={false}
+        contentSlot={entries.map((entry) => (
+          <ListItem
+            key={entry.id}
+            className="rounded-lg border border-foreground/10 bg-secondary"
+            linkSlot={<NavLink to={`/${entry.entryDate}`} />}
+            title={formatFullDate(entry.entryDate)}
+            description={entry.body.trim() || 'No words that day.'}
+            meta={<MoodDot mood={entry.mood} wording="printed" />}
+          />
+        ))}
+      />
     </div>
   );
 }
