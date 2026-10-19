@@ -21,6 +21,7 @@ integration is not built here, and nothing in this repo reaches out to them.
 | Forms    | TanStack Form, through cubeui's `useAppForm`      |
 | API      | graphql-yoga 5 on Express 5, GraphQL              |
 | Database | Drizzle ORM + PostgreSQL (`postgres-js`)          |
+| Auth     | better-auth (magic link, OIDC), served as GraphQL by `@cubicecho/graphql-better-auth` |
 | Testing  | Vitest, PGlite as an in-memory Postgres fixture; Storybook stories run in Chromium |
 | Linting  | Biome (formatter + linter)                        |
 | Runtime  | Node.js 26+, ESM (`"type": "module"` throughout)  |
@@ -39,8 +40,9 @@ ephemeris/
 │       │   ├── app-shell/   # app-layout (the SidebarLayout chrome), sidebar-link
 │       │   ├── entries/     # recent-days, entry-form (the editor and its two documents)
 │       │   ├── mood/        # mood-scale, mood-field (the scale bound to a form)
+│       │   ├── sso/         # sign-in-options (the login page's first query), sso-sign-in, pair-sso-form
 │       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, app-form, …)
-│       ├── routes/          # login, verify, journal (the one page)
+│       ├── routes/          # login, verify (a magic link lands), sso (an OIDC sign-in lands), journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
 │       ├── testing/         # story-mocks: the mocked server answers stories share
 │       └── main.tsx         # Providers + the router
@@ -55,23 +57,30 @@ ephemeris/
 │       │   ├── config.ts        # Every env var, read at call time, over those defaults
 │       │   ├── errors.ts        # ErrorCode and the one factory per code
 │       │   ├── context.ts, validation.ts, wire.ts
-│       ├── http/            # app.ts (createApp), health.ts, static.ts, shutdown.ts
+│       ├── http/            # app.ts (createApp), health.ts, static.ts, shutdown.ts, sso.ts (the two OIDC redirects)
 │       ├── graphql/
 │       │   ├── build-schema.ts  # createSchema(db) — buildSchema + extensions
 │       │   ├── tenancy.ts       # Row scope, server-owned columns and which writes exist
 │       │   ├── operation-limits.ts  # Depth, alias and cost limits on one operation
 │       │   ├── write-guards.ts  # writtenRows: what every table's write hooks share
 │       │   └── handler.ts, schema.ts, logger.ts, write-schema.ts
-│       ├── auth/            # resolvers.ts (magic-link sign-in, the one thing that is not CRUD), rate-limit.ts
+│       ├── auth/
+│       │   ├── better-auth.ts   # createAuth(db, opts): the better-auth instance, sessionUserId
+│       │   ├── endpoints.ts     # better-auth's endpoints as GraphQL, with Ephemeris's rules in each `around`
+│       │   ├── resolvers.ts     # authConfig: which ways of signing in the login page shows
+│       │   ├── auth-host.ts     # AuthHost: the current instance, rebuilt when a provider is paired
+│       │   ├── admin.ts         # isAdmin, claimFirstAdmin, hasUsers
+│       │   └── throttle.ts, rate-limit.ts
+│       ├── sso/             # settings.ts (env vs pairing), pairing.ts (DCR), resolvers.ts (ssoSetup, pairSso, unpairSso)
 │       ├── entries/         # hooks.ts (the onWrite hook), input.ts (the mood scale and the body limit)
 │       └── __tests__/       # Server tests, in the same folders as what they test
 ├── db/
 │   ├── drizzle/             # Generated migrations (committed)
 │   └── src/
-│       ├── models/          # users, entries
+│       ├── models/          # users, entries; better-auth's sessions, accounts, verifications; oidc-settings
 │       ├── relations.ts     # defineRelations config (drives the GraphQL schema)
 │       ├── defaults.ts      # Connection and retry timings, as plain frozen data
-│       ├── ssl.ts           # requiresSsl: TLS for a public host, not for a LAN or compose one
+│       ├── ssl.ts           # isPrivateHost, requiresSsl: TLS for a public host, not for a LAN or compose one
 │       ├── wait.ts          # waitForDatabase: retry until Postgres answers
 │       └── index.ts         # DB singleton + re-exports
 ├── .github/workflows/       # ci.yml (check, migrations, boot), release.yml (semantic-release + images)
@@ -113,9 +122,14 @@ fields and — here — the writes too, for every table in `db/src/relations.ts`
 - **`upsert` is not on by default — this app turns it on**, and that single
   feature flag is the reason there is no hand-written `saveEntry`. See the
   invariant below.
-- **Only what CRUD cannot express gets a resolver.** That is `auth/resolvers.ts`,
-  and nothing else. `entries/hooks.ts` is not a resolver: it is an
-  `onWrite` hook on the generated mutations.
+- **Only what CRUD cannot express is added by hand, and all of it is sign-in.**
+  better-auth's own endpoints (`auth/endpoints.ts`, through
+  `@cubicecho/graphql-better-auth`), `authConfig` (`auth/resolvers.ts`) and
+  pairing a provider (`sso/resolvers.ts`). `entries/hooks.ts` is not a resolver:
+  it is an `onWrite` hook on the generated mutations.
+- **better-auth's tables and `oidc_settings` are not in the schema.** `exclude`
+  in `tenancy.ts` keeps them out: sessions, pending links and a client secret are
+  credentials, reached only through better-auth's endpoints.
 - **Ids are `UUID`, not `ID`.** The generated scalar, and what hand-written SDL
   has to declare too, or a variable will not typecheck against it.
 
@@ -142,7 +156,8 @@ case for each half.
 a `RowScope` that is ANDed into the SQL of every generated read, update and
 delete. A table missing from `scope` is visible across tenants, and nothing else
 in the code will say so. `tenancy.test.ts` fails when you forget — do not delete
-the test to make it pass.
+the test to make it pass. A table that is never served goes in `AUTH_TABLES` or
+`SERVER_TABLES` instead, which `exclude` keeps out of the schema altogether.
 
 **A journal day is a calendar day, not an instant.** `entryDate` is a Postgres
 `date` in `{ mode: 'string' }`, so it crosses the wire as `YYYY-MM-DD` in both
@@ -189,18 +204,62 @@ write back, so there is no window between the check and the write. `writtenRows`
 (`graphql/write-guards.ts`) normalises the four shapes a write can arrive in (`values` as a row or a list,
 `set`, `updates[].set`); a delete writes nothing and is not checked.
 
+**Sign-in is better-auth, and sessions are rows in Postgres.** `createAuth(db,
+opts)` is a factory, not a singleton: the instance travels on the context
+(`ctx.auth`), handed out per request by `AuthHost`, and tests build the real
+one over PGlite with its links captured. Sessions go to the client as a token
+it sends back as `Authorization: Bearer` (the `bearer` plugin); there are no
+cookies but the OIDC state cookie, and better-auth's REST routes are not
+mounted. A link or a provider, never a password. The secret is
+`BETTER_AUTH_SECRET`; `JWT_SECRET`, the older name, is still read when it is
+unset. Moving from the hand-signed JWTs invalidated every session once.
+
 **`SECURE_LOCAL_NET` is the ecosystem's word for a trusted network**, and here it
-means sign-in needs no link: `requestMagicLink` returns a live session for
-whatever address it is handed, and the login page uses it (`if (result.token)`).
+means sign-in needs no link: `signInMagicLink` returns a live session for
+whatever address it is handed, and the login page uses it (`if (link.token)`).
 `AUTH_MAGIC_LINK=false` is the older, narrower spelling and still works;
 `magicLinkRequired()` in `core/config.ts` is where the two meet. Both make an email
-address the entire credential, so neither belongs on a reachable instance.
-Ephemeris ships no mail provider — `EXPOSE_MAGIC_LINK` returns the link in the
-response so a single-user instance can sign in at all.
+address the entire credential, so neither belongs on a reachable instance, and
+preflight refuses either one with an `APP_URL` that is not a private address
+(`isPrivateHost`) unless `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC=true`. The account is
+made through better-auth's adapter (`$context.internalAdapter`, an internal API
+that `endpoints.test.ts` exists to catch breaking), so it is the same row a
+later link or provider sign-in finds. Ephemeris ships no mail provider: the log
+is the delivery channel, and `EXPOSE_MAGIC_LINK` returns the link in the
+response (captured per call by `withSentLinks`) so a single-user instance can
+sign in at all.
 
 **`UNAUTHENTICATED` means the session expired.** The client drops its token on it
-and redirects to `/login`. A bad magic link is `BAD_USER_INPUT` — it must not
-sign anyone out.
+and redirects to `/login`. A bad magic link or a spent one-time token is
+`BAD_USER_INPUT` (`refusedAs` in `auth/endpoints.ts`, over the 401 better-auth
+would map to UNAUTHENTICATED) — it must not sign anyone out. Signing out calls
+`signOut`, which deletes the session row, and drops the token whatever the
+server answers.
+
+**OIDC sign-in, and the environment wins.** One provider per instance, under the
+id `oidc`, through better-auth's `genericOAuth` (PKCE, state, nonce, id token
+verified). It comes from `OIDC_ISSUER`/`OIDC_CLIENT_ID` when those are set, and
+then cannot be changed from the app; otherwise from the `oidc_settings` row a
+pairing wrote; otherwise there is none. `effectiveOidc` in `sso/settings.ts` is
+the only place that decides. Only the two browser legs are HTTP routes
+(`http/sso.ts`: `/sso/oidc` and better-auth's `/api/auth/callback/oidc`, under
+`SERVER_URL`); the callback drops the session cookie better-auth would set and
+lands the browser on the app's `/auth/sso` with a one-time token, which
+`verifyOneTimeToken` swaps for the bearer session. An address the provider
+vouches for signs in to the account that already has it.
+
+**Pairing is Dynamic Client Registration, and who may pair is load-bearing.**
+`pairSso` takes a setup URL (`<issuer>#setup=<token>&name=<name>`), checks the
+issuer's discovery document names that same issuer *before* the token goes
+anywhere, registers at its `registration_endpoint` (RFC 7591), saves the client,
+and `ctx.authHost.rebuild()`s better-auth so the button appears without a
+restart. `unpairSso` deletes the client at the provider (RFC 7592) and forgets
+the row whatever it answers. Anyone may pair while there are no accounts; once
+there are, only the admin — the first account created, via `claimFirstAdmin` in
+`databaseHooks`, and on an upgraded instance the earliest one (a backfill
+migration). Otherwise a stranger could pair a provider of their own and, with
+account linking by address, sign in as anyone. Refusals are `FORBIDDEN`, a
+second pairing `CONFLICT`, and a provider's refusal carries `extensions.reason`.
 
 **Every day is a URL.** `/` only ever redirects to today; the page itself lives
 at `/:date`. A date that is not a real calendar day redirects to today rather
@@ -349,8 +408,11 @@ refuses a `limit` over `maxPageSize`; `graphql/operation-limits.ts` refuses a
 document that is too deep, too aliased or too costly with `QUERY_TOO_COMPLEX`.
 The numbers are `OPERATION_LIMIT_DEFAULTS`.
 
-**Sign-in is throttled in process, per address and per email.**
-`auth/rate-limit.ts` counts `requestMagicLink` and `verifyMagicLink` attempts
+**Sign-in is throttled in process, per address and per email, by us.**
+better-auth's own limiter runs only on its REST routes, which are not mounted,
+so every sign-in `around` calls `throttle()` (`auth/throttle.ts`) first.
+`auth/rate-limit.ts` counts `signInMagicLink`, `magicLinkVerify` and
+`verifyOneTimeToken` attempts
 against `<flow>:ip:<address>` and `<flow>:email:<address>`, and refuses with
 `TOO_MANY_REQUESTS` and a `retryAfter`. The address is only the real client's
 when `TRUST_PROXY` matches the proxy in front; the default is `false`, which is

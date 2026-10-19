@@ -12,7 +12,9 @@ never a second entry for it.
   editor instead.
 - **A mood, if you want one** — 1 to 5, or not recorded. The only structured
   field in the whole app, and the only one anything else will ever read.
-- **Sign-in by magic link**, or no link at all on a private instance.
+- **Sign-in by magic link or an OpenID Connect provider** (heautou, Keycloak,
+  Authentik, …), paired from the login page by pasting one URL — or no link at
+  all on a private instance.
 - **Light, dark or whatever the system is** — chosen per device, remembered in
   the browser, applied before the first frame so there is no white flash.
 
@@ -33,7 +35,7 @@ same origin.
 git clone https://github.com/cubicecho/ephemeris.git
 cd ephemeris
 
-export JWT_SECRET=$(openssl rand -hex 32) POSTGRES_PASSWORD=$(openssl rand -hex 24)
+export BETTER_AUTH_SECRET=$(openssl rand -hex 32) POSTGRES_PASSWORD=$(openssl rand -hex 24)
 docker compose up -d
 ```
 
@@ -48,25 +50,72 @@ so the magic link goes to the log, and that is the delivery channel:
 docker compose logs -f ephemeris
 ```
 
-Keep that `JWT_SECRET`. It signs sessions, so changing it signs everyone out.
-Your entries live in the `ephemeris_pgdata` volume and survive
+Keep that `BETTER_AUTH_SECRET`. Sessions are rows in Postgres, but the OIDC
+sign-in's state and one-time tokens are signed with it. Your entries live in the `ephemeris_pgdata` volume and survive
 `docker compose down`.
 
 Read [**Before you expose it**](#before-you-expose-it) before putting this on a
 domain.
+
+## Signing in
+
+Sign-in is [better-auth](https://www.better-auth.com), with its sessions in
+Postgres. There is no password, ever. Three ways in, and the login page shows
+only the ones this instance offers:
+
+- **A magic link.** Type an address and a link is sent to it; it works once, for
+  15 minutes. Ephemeris ships no mail provider, so "sent" means written to the
+  server's log. `EXPOSE_MAGIC_LINK=true` (the default outside production) also
+  hands it back to the login page, which is how a single-user instance signs in
+  without reading the log.
+- **An OpenID Connect provider.** A *Sign in with …* button that goes to the
+  provider and comes back signed in. The account is matched by the address the
+  provider vouches for, so an existing account keeps its days.
+- **The address alone**, under `SECURE_LOCAL_NET=true` (or the narrower
+  `AUTH_MAGIC_LINK=false`), on a network with nothing hostile on it.
+
+### Pairing a provider
+
+The easy way needs no configuration. On a new instance — no accounts yet — the
+login page offers **Set up sign-in with a provider**: paste the setup URL your
+provider's admin made for Ephemeris (`<issuer>#setup=<token>&name=<name>`; heautou
+generates one). Ephemeris registers itself with the provider by Dynamic Client
+Registration (RFC 7591), keeps the client it gets back in Postgres, and the
+button appears without a restart.
+
+Anyone may pair while there are no accounts, so whoever installs it can set
+sign-in up first. The first account to sign in becomes the instance's admin, and
+after that only the admin may pair or disconnect a provider (`pairSso` /
+`unpairSso`). Disconnecting deletes the client at the provider (RFC 7592).
+
+The other way is the environment: `OIDC_ISSUER` and `OIDC_CLIENT_ID` (and
+`OIDC_CLIENT_SECRET` for a confidential client) pin the provider, which then wins
+over any pairing and cannot be changed from the app. Register the redirect URI
+the server prints at boot with the provider: `<SERVER_URL>/api/auth/callback/oidc`.
+
+Upgrading from a release before better-auth signs everyone out once: the old
+sessions were signed tokens, and there is no table they could be carried into.
+Accounts and entries are kept, and the earliest existing account becomes the
+admin.
 
 ## Configuration
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DATABASE_URL` | — | **Required.** Postgres connection string. |
-| `JWT_SECRET` | — | **Required in production.** Signs session and magic-link tokens. `openssl rand -hex 32`. |
-| `APP_URL` | `http://localhost:$PORT` | Public URL; magic-link URLs are built from it. |
+| `BETTER_AUTH_SECRET` | — | **Required in production**, at least 32 characters. What better-auth signs with. `openssl rand -hex 32`. `JWT_SECRET`, the older name, is still read when this is unset. |
+| `APP_URL` | `http://localhost:$PORT` | Public URL; magic links and the OIDC sign-in's landing page are built from it. |
+| `SERVER_URL` | `APP_URL` in production | Where a browser reaches the server, for the OIDC sign-in's start and callback. Only differs from `APP_URL` in development. |
 | `PORT` | `3005` | Port the server listens on. |
 | `MAX_BODY_CHARS` | `65536` | Longest entry accepted, in characters — roughly 10,000 words. |
 | `SECURE_LOCAL_NET` | `false` | `true` on a network with nothing hostile on it: an address alone signs you in, no link to fetch. |
 | `AUTH_MAGIC_LINK` | `true` | The narrower spelling of the same thing: `false` turns the link off and leaves everything else alone. |
 | `EXPOSE_MAGIC_LINK` | dev only | Return the magic link in the API response so the login page can show it. |
+| `I_KNOW_SECURE_LOCAL_NET_IS_PUBLIC` | `false` | `SECURE_LOCAL_NET` (or `AUTH_MAGIC_LINK=false`) with an `APP_URL` that is not a private address stops the boot; `true` says that is on purpose. |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID` | — | Pin an OpenID Connect provider. Both or neither. Unset, a provider can be [paired from the login page](#pairing-a-provider). |
+| `OIDC_CLIENT_SECRET` | — | The client's secret. Unset, it is a public client and PKCE carries it. |
+| `OIDC_CLIENT_AUTH` | `client_secret_basic` | How the secret is sent: `client_secret_basic` or `client_secret_post`. |
+| `OIDC_NAME` | `SSO` | What the login page's button calls the provider. |
 | `TRUST_PROXY` | `false` | The proxies in front that may set `X-Forwarded-For`: `1` for one reverse proxy, or `loopback`, `uniquelocal`, or a list of addresses. The sign-in throttle counts by client address. |
 | `DB_CONNECT_TIMEOUT_MS` | `60000` | How long boot waits for Postgres before giving up. |
 
@@ -90,17 +139,22 @@ self-hosted data gets. Before putting Ephemeris on a domain:
 - **Never set `SECURE_LOCAL_NET=true` (or `AUTH_MAGIC_LINK=false`) on a reachable
   instance.** Either one makes an email address the entire credential: anyone who
   can load the login page can sign in as anyone. They are for a LAN you control,
-  which is the only place "secure local net" is a true statement.
+  which is the only place "secure local net" is a true statement. The server
+  refuses to start with either one and an `APP_URL` that is not a private
+  address.
 - **Never set `EXPOSE_MAGIC_LINK=true` on a reachable instance.** It hands the
   sign-in token to whoever asked for it, which is the same thing by another route.
-- **Set a real `JWT_SECRET`** and keep it. Changing it signs everyone out; leaking
-  it lets anyone mint a session.
+- **Set a real `BETTER_AUTH_SECRET`** and keep it. Leaking it lets anyone forge
+  what better-auth signs.
+- **Sign in once before you expose it.** The first account is the admin, and
+  until there is one anybody who can load the login page may pair the instance
+  with a provider of their own.
 
 ## Development
 
 ```bash
 cp .env.example .env
-sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$(openssl rand -hex 32)/" .env
+sed -i "s/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=$(openssl rand -hex 32)/" .env
 
 npm install
 npm run db:up          # Postgres on 127.0.0.1:5437
@@ -111,7 +165,9 @@ npm run dev            # API on 3005, Vite dev server on 3000
 
 Open <http://localhost:3000>. The dev server proxies `/graphql` to the API, and
 outside production the magic link comes back in the response, so the login page
-offers it as a link.
+offers it as a link. To try a provider in development, set
+`APP_URL=http://localhost:3000` so the sign-in lands back on Vite; the dev server
+proxies the server's `/sso` and `/api/auth` paths too.
 
 `npm run check` runs codegen, Biome and `tsc --noEmit` across all three
 workspaces; `npm test` runs the suite against an in-memory Postgres, and then
