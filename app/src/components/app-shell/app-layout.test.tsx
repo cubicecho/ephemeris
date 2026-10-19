@@ -4,7 +4,7 @@ import { MockedProvider } from '@apollo/client/testing/react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { AppLayout } from '@/components/app-shell/app-layout';
+import { AppLayout, SignOut } from '@/components/app-shell/app-layout';
 import { RECENT_LIMIT, RecentEntries } from '@/components/entries/recent-days';
 
 const DAYS = [
@@ -78,7 +78,7 @@ describe('AppLayout', () => {
     expect(within(screen.getByRole('banner')).getByText(/of the last 30 days written/)).toBeInTheDocument();
   });
 
-  it('forgets the cached days on sign-out', async () => {
+  it('ends the session and forgets the cached days on sign-out', async () => {
     let client: ApolloClient | undefined;
     /** Hands the test the client the shell is drawn under. */
     function CaptureClient() {
@@ -92,6 +92,7 @@ describe('AppLayout', () => {
             request: { query: RecentEntries, variables: { limit: RECENT_LIMIT } },
             result: { data: { entries: DAYS } },
           },
+          { request: { query: SignOut }, result: { data: { signOut: { success: true } } } },
         ]}
       >
         <MemoryRouter initialEntries={[`/${TODAY}`]}>

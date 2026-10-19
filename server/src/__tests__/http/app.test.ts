@@ -1,10 +1,11 @@
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { fixedAuthHost } from '../../auth/auth-host.ts';
 import { OPERATION_LIMIT_DEFAULTS } from '../../core/defaults.ts';
 import { ErrorCode } from '../../core/errors.ts';
 import { HttpStatus } from '../../core/wire.ts';
 import { createApp } from '../../http/app.ts';
-import { createTestDb, portOf } from '../helpers.ts';
+import { createTestAuth, createTestDb, portOf } from '../helpers.ts';
 
 /** Just over `HTTP_DEFAULTS.bodyLimit`, which is 1 MB. */
 const OVERSIZED_PADDING_BYTES = 1_100_000;
@@ -75,7 +76,7 @@ describe('the HTTP app', () => {
 
   beforeAll(async () => {
     const db = await createTestDb();
-    const app = createApp({ db });
+    const app = await createApp({ db, authHost: fixedAuthHost(createTestAuth(db).auth) });
     server = await new Promise<Server>((resolve) => {
       const listening = app.listen(0, LOOPBACK, () => resolve(listening));
     });

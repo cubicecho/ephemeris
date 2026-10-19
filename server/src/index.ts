@@ -5,13 +5,16 @@ import { fileURLToPath } from 'node:url';
 import { closeDatabase, db } from '@cubicecho/ephemeris-db';
 import { waitForDatabase } from '@cubicecho/ephemeris-db/wait';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { type AuthHost, createAuthHost } from './auth/auth-host.ts';
 import {
   appUrl,
   dbConnectTimeoutMs,
   magicLinkExposed,
   magicLinkRequired,
+  oidcRedirectUri,
   port,
   secureLocalNet,
+  serverUrl,
 } from './core/config.ts';
 import { errorMessage } from './core/errors.ts';
 import { createApp } from './http/app.ts';
@@ -26,8 +29,18 @@ const LISTEN_HOST = '0.0.0.0';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Says at boot which sign-in protections are off, naming the variable that did it. */
-function warnAboutOpenSignIn(): void {
+/**
+ * Says at boot how people sign in: the OIDC provider and the redirect URI to register with it, and which sign-in
+ * protections are off, naming the variable that did it.
+ *
+ * @param authHost - The host, built after migrate, so a paired provider is known.
+ */
+function describeSignIn(authHost: AuthHost): void {
+  const oidc = authHost.oidc();
+  if (oidc !== null) {
+    // The redirect URI is the one thing an operator has to copy into the provider, exactly.
+    console.log(`[auth] sign-in with ${oidc.name} (${oidc.issuer}); redirect URI ${oidcRedirectUri()}`);
+  }
   const isDirectSignIn = magicLinkRequired() === false;
   if (isDirectSignIn) {
     const cause = secureLocalNet() ? 'SECURE_LOCAL_NET is on' : 'AUTH_MAGIC_LINK is off';
@@ -53,11 +66,16 @@ try {
 // At boot, so `docker compose up` on a fresh volume is the whole install.
 await migrate(db, { migrationsFolder: join(__dirname, '../../db/drizzle') });
 
-const app = createApp({ db, staticDir: join(__dirname, '../../app/dist') });
+// After migrate: the provider may be a pairing, which lives in the database.
+const authHost = await createAuthHost(db);
+const app = await createApp({ db, authHost, staticDir: join(__dirname, '../../app/dist') });
 
 const server = app.listen(port(), LISTEN_HOST, () => {
   // APP_URL, not localhost: a wrong address here is the same wrong one that breaks magic links.
   console.log(`[server] ready at ${appUrl()}`);
-  warnAboutOpenSignIn();
+  if (serverUrl() !== appUrl()) {
+    console.log(`[server] OIDC redirects at ${serverUrl()}`);
+  }
+  describeSignIn(authHost);
 });
 stopOnSignals(server, { after: closeDatabase });

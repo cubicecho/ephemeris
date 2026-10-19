@@ -10,11 +10,13 @@ import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';
 import { JournalRoute } from '@/routes/journal';
 import { LoginPage } from '@/routes/login';
+import { SsoPage } from '@/routes/sso';
 import { VerifyPage } from '@/routes/verify';
 import './index.css';
 
 /**
- * No token, no request: an expired one is caught by the error link instead.
+ * No session token, no request: one that has expired, or was ended on another device, is caught by the error link
+ * instead, which drops it on the server's UNAUTHENTICATED.
  * The app chrome lives behind this, because the sidebar lists your days and the
  * signed-out screens are a single centred card with nothing to navigate.
  */
@@ -41,7 +43,7 @@ function ThemeSync() {
  * than rendering today's page at `/` means a bookmarked day stays that day and
  * the browser's back button walks the days you visited.
  *
- * `/login` and `/auth/verify` still win over `/:date` — react-router ranks a
+ * `/login`, `/auth/verify` and `/auth/sso` still win over `/:date` — react-router ranks a
  * static segment above a dynamic one — and anything else that is not a date
  * redirects from inside the route.
  */
@@ -58,6 +60,7 @@ createRoot(rootElement).render(
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/verify" element={<VerifyPage />} />
+          <Route path="/auth/sso" element={<SsoPage />} />
           <Route path="/" element={<Navigate to={`/${todayIso()}`} replace />} />
           <Route path="/:date" element={<RequireAuth contentSlot={<JournalRoute />} />} />
         </Routes>

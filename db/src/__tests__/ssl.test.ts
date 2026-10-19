@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requiresSsl } from '../ssl.ts';
+import { isPrivateHost, requiresSsl } from '../ssl.ts';
 
 describe('requiresSsl', () => {
   it.each([
@@ -35,5 +35,18 @@ describe('requiresSsl', () => {
     ['a public IPv6 address', 'postgres://app:app@[2001:db8::1]:5432/app'],
   ])('forces TLS for %s', (_name, url) => {
     expect(requiresSsl(url)).toBe(true);
+  });
+});
+
+describe('isPrivateHost', () => {
+  it.each(['localhost', 'docker.lan', 'postgres', '192.168.1.20', '[::1]', 'FD12:3456::1'])(
+    'counts %s as private',
+    (host) => {
+      expect(isPrivateHost(host)).toBe(true);
+    },
+  );
+
+  it.each(['journal.example.com', '8.8.8.8', '2001:db8::1'])('counts %s as public', (host) => {
+    expect(isPrivateHost(host)).toBe(false);
   });
 });

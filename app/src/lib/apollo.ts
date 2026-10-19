@@ -17,9 +17,10 @@ const httpLink = new HttpLink({
   },
 });
 
-// A token that expired or was signed by a rotated secret fails every request
-// the same way. Drop it and start over at sign-in rather than rendering a page
-// of errors.
+// A session that expired, was ended on another device, or predates better-auth
+// fails every request the same way: UNAUTHENTICATED. Drop it and start over at
+// sign-in rather than rendering a page of errors. A bad sign-in link is
+// BAD_USER_INPUT instead, so it never lands here.
 const errorLink = new ErrorLink(({ error }) => {
   const isNetworkFailure = CombinedGraphQLErrors.is(error) === false;
   if (isNetworkFailure) {

@@ -40,9 +40,9 @@ export const RATE_LIMIT_DEFAULTS: Readonly<RateLimitSettings> = Object.freeze({
 
 /** Sign-in and credential settings. */
 export interface AuthSettings {
-  /** How long an emailed sign-in link works. Short, because it travels by mail. */
+  /** How long a sign-in link works. Short, because it travels by mail or a log. */
   magicLinkTtlMinutes: number;
-  /** How long a session token works. Long, because there is no refresh flow and no session table. */
+  /** How long a session lasts after it was last used. Long: there is no password to fall back on. */
   sessionTtlDays: number;
   /** Shortest signing secret production accepts, in characters. `openssl rand -hex 32` gives 64. */
   minSecretLength: number;
@@ -50,6 +50,14 @@ export interface AuthSettings {
   secureLocalNet: boolean;
   /** Whether sign-in needs a magic link followed. `AUTH_MAGIC_LINK` overrides it, and `SECURE_LOCAL_NET` turns it off. */
   magicLinkRequired: boolean;
+  /** How long the token an OIDC callback hands the app works: the hop from the callback to `/auth/sso`. */
+  oneTimeTokenTtlMinutes: number;
+  /** What the login page's OIDC button calls the provider. `OIDC_NAME` overrides it. */
+  oidcName: string;
+  /** How a confidential OIDC client sends its secret. `OIDC_CLIENT_AUTH` overrides it. */
+  oidcClientAuth: 'client_secret_basic' | 'client_secret_post';
+  /** How long pairing waits on the provider before calling it unreachable. */
+  oidcPairingTimeoutMs: number;
 }
 
 export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
@@ -58,6 +66,11 @@ export const AUTH_DEFAULTS: Readonly<AuthSettings> = Object.freeze({
   minSecretLength: 32,
   secureLocalNet: false,
   magicLinkRequired: true,
+  oneTimeTokenTtlMinutes: 3,
+  oidcName: 'SSO',
+  // The default the OIDC spec names.
+  oidcClientAuth: 'client_secret_basic',
+  oidcPairingTimeoutMs: 10_000,
 });
 
 /** Limits on what an entry may hold. */

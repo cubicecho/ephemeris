@@ -8,6 +8,7 @@ export const ErrorCode = {
   TooManyRequests: 'TOO_MANY_REQUESTS',
   Forbidden: 'FORBIDDEN',
   QueryTooComplex: 'QUERY_TOO_COMPLEX',
+  Conflict: 'CONFLICT',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -26,6 +27,10 @@ const withCode =
 export const badInput = withCode(ErrorCode.BadUserInput);
 /** An operation that is too deep, too aliased or too costly to run. */
 export const tooComplex = withCode(ErrorCode.QueryTooComplex);
+/** This kind of caller may never do this. About the instance, never about a row someone else owns. */
+export const forbidden = withCode(ErrorCode.Forbidden);
+/** The instance is already set up another way, which has to be undone first. */
+export const conflict = withCode(ErrorCode.Conflict);
 
 /**
  * Builds the refusal for too many attempts inside one window.

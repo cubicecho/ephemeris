@@ -31,8 +31,12 @@ export default defineConfig({
     // where vite's localhost-only default would be unreachable.
     host: true,
     port: 3000,
-    proxy: {
-      '/graphql': process.env.EPHEMERIS_SERVER_URL ?? 'http://localhost:3005',
-    },
+    // The OIDC sign-in's two browser legs too (server/src/http/sso.ts), so SERVER_URL may be this origin in dev.
+    proxy: Object.fromEntries(
+      ['/graphql', '/sso', '/api/auth'].map((prefix) => [
+        prefix,
+        process.env.EPHEMERIS_SERVER_URL ?? 'http://localhost:3005',
+      ]),
+    ),
   },
 });

@@ -1,4 +1,10 @@
-import type { ContextValuesConfig, RowScope, SchemaFeatures, ScopeConfig } from '@vantreeseba/drizzle-graphql';
+import type {
+  BuildSchemaConfig,
+  ContextValuesConfig,
+  RowScope,
+  SchemaFeatures,
+  ScopeConfig,
+} from '@vantreeseba/drizzle-graphql';
 import { eq } from 'drizzle-orm';
 import type { Context } from '../core/context.ts';
 import { requireAuth } from '../core/errors.ts';
@@ -21,6 +27,14 @@ export const USER_OWNED_TABLES = ['entries'] as const;
 /** Every table drizzle-graphql will generate fields for. */
 export const ALL_TABLES = [USERS_TABLE, ...USER_OWNED_TABLES] as const;
 
+/** better-auth's tables. Sessions and pending links are credentials, reached only through better-auth's endpoints. */
+export const AUTH_TABLES = ['sessions', 'accounts', 'verifications'] as const;
+/** Tables the server keeps for itself: the OIDC pairing, whose client secret nothing reads back out. */
+export const SERVER_TABLES = ['oidcSettings'] as const;
+
+/** Kept out of the schema altogether, so they need no `scope`: there is no generated field to scope. */
+export const exclude: NonNullable<BuildSchemaConfig['exclude']> = { tables: [...AUTH_TABLES, ...SERVER_TABLES] };
+
 const scopeByUserId: RowScope<Context> = (context, table) => eq(table.userId, requireAuth(context));
 
 export const scope: ScopeConfig<Context> = {
@@ -40,7 +54,7 @@ export const contextValues: ContextValuesConfig<Context> = Object.fromEntries(
 );
 
 /**
- * `users` writes belong to the auth flow (auth/resolvers.ts): an account exists
+ * `users` writes belong to better-auth (auth/better-auth.ts): an account exists
  * because a sign-in created it, and there is nothing else about a user to edit.
  * Everything `entries` needs is generated CRUD plus the upsert.
  */
