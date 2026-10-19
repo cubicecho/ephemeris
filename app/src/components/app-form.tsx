@@ -1,16 +1,33 @@
-import type { AnyFieldApi, DeepKeys, DeepValue } from "@tanstack/react-form";
+import type { DeepKeys, DeepValue } from "@tanstack/react-form";
 import { createFormHook, createFormHookContexts, useStore } from "@tanstack/react-form";
 import type { ComponentProps, ComponentType, ReactNode } from "react";
-import { useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type {
+  ComboboxMultipleProps,
+  ComboboxSingleProps,
+  SelectEntry,
+  SelectOption,
+  SelectSeparatorEntry,
+} from "@/components/combobox";
+import { Combobox } from "@/components/combobox";
 import { FormField } from "@/components/form-field";
-import type { SelectEntry, SelectOption, SelectSeparatorEntry } from "@/components/option-select";
-import { OptionSelect } from "@/components/option-select";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonPropsWithout } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { messageOf } from "@/lib/error-message";
+import {
+  type BindableForm,
+  type FormBinding,
+  fieldOf,
+  type NamesOfType,
+  type ValuesOf,
+} from "@/lib/form-binding";
+import { numberText, parseNumber } from "@/lib/number-draft";
+import { menuValueOf, storedValueOf, withEmptyOption } from "@/lib/select-options";
 
+/** TanStack Form's contexts, which the bound fields read their field and form from. */
 export const { fieldContext, formContext, useFieldContext, useFormContext } =
   createFormHookContexts();
 
@@ -23,24 +40,27 @@ export type FieldProps = Omit<ComponentProps<typeof FormField>, "controlSlot" | 
  * still have both halves typed. The alternative is nesting one of them under a prop of its own,
  * which reads worse at every call site to save this list.
  *
- * A key added to `FormField` and forgotten here lands on the control instead, where React will
- * say so: `loadingClassName` is not an attribute of `<input>`.
+ * Written as a record over `FieldProps` rather than a list, so a key added to `FormField` and
+ * not here, or one misspelt here, fails the typecheck instead of landing on the control.
  */
-const FIELD_KEYS = new Set<string>([
-  "label",
-  "description",
-  "required",
-  "action",
-  "loading",
-  "htmlFor",
-  "asGroup",
-  "orientation",
-  "className",
-  "labelClassName",
-  "descriptionClassName",
-  "errorClassName",
-  "loadingClassName",
-]);
+const FIELD_KEY_RECORD: Record<keyof FieldProps, true> = {
+  label: true,
+  description: true,
+  descriptionPlacement: true,
+  descriptionIconSlot: true,
+  required: true,
+  actionSlot: true,
+  loading: true,
+  htmlFor: true,
+  asGroup: true,
+  orientation: true,
+  className: true,
+  labelClassName: true,
+  descriptionClassName: true,
+  errorClassName: true,
+  loadingClassName: true,
+};
+const FIELD_KEYS = new Set<string>(Object.keys(FIELD_KEY_RECORD));
 
 /**
  * Splits one flat prop list into the half `FormField` draws and the half the control takes.
@@ -61,15 +81,6 @@ export function splitProps<T>(props: FieldProps & T): [FieldProps, T] {
   return [field as FieldProps, control as T];
 }
 
-function messageOf(error: unknown): string | undefined {
-  if (error == null) return undefined;
-  if (typeof error === "string") return error;
-  if (typeof error === "object" && "message" in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return String(error);
-}
-
 /**
  * The field's first error, or nothing — and *when* is most of what this does.
  *
@@ -85,7 +96,9 @@ export function useFieldError(): string | undefined {
   const isTouched = useStore(field.store, (state) => state.meta.isTouched);
   const attempts = useStore(field.form.store, (state) => state.submissionAttempts);
 
-  if (!isTouched && attempts === 0) return undefined;
+  if (isTouched === false && attempts === 0) {
+    return undefined;
+  }
   return messageOf(errors[0]);
 }
 
@@ -117,25 +130,17 @@ function BoundInputField(props: InputFieldProps) {
   );
 }
 
-/**
- * What a number input's box says, as a number — or nothing, for empty and for the half-typed
- * states a person passes through on the way to one.
- *
- * `""`, `"-"` and `"1e"` are all "not a number yet", not zero: coercing them would make the
- * store say `0` while the box says `-`, and a required-field validator pass on an empty box.
- */
-function parseNumber(text: string): number | null {
-  const trimmed = text.trim();
-  if (trimmed === "") return null;
-  const parsed = Number(trimmed);
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
 type NumberFieldProps = FieldProps &
   Omit<
     ComponentProps<typeof Input>,
     "id" | "value" | "defaultValue" | "onChange" | "onChangeText" | "onBlur" | "type"
-  >;
+  > & {
+    /**
+     * Whole numbers only: the digits keypad on device, a step of 1 on the web, and a fraction such
+     * as `1.5` stores `null` (as a half-typed `-` does) for a validator to report, not a rounding.
+     */
+    integer?: boolean | undefined;
+  };
 
 /**
  * A number input whose store stays numeric.
@@ -151,21 +156,13 @@ type NumberFieldProps = FieldProps &
  * is kept as a draft and shown while it still *means* the stored number; anything that replaces
  * the value from outside wins, because then it no longer does.
  */
-function BoundNumberField(props: NumberFieldProps) {
+function BoundNumberField({ integer = false, ...props }: NumberFieldProps) {
   const [fieldProps, input] = splitProps(props);
   const field = useFieldContext<number | null>();
   const error = useFieldError();
   const [draft, setDraft] = useState<string | undefined>(undefined);
 
   const stored = field.state.value ?? null;
-  // `String`, not the raw number: the DOM `<input>` this was written against took either, and
-  // `TextInput` takes only a string — so the registry's `Input` does too, on both platforms.
-  const value =
-    draft !== undefined && parseNumber(draft) === stored
-      ? draft
-      : stored === null
-        ? ""
-        : String(stored);
 
   return (
     <FormField
@@ -175,10 +172,11 @@ function BoundNumberField(props: NumberFieldProps) {
         <Input
           // `inputMode` is what gets a phone keypad; `type` is what gets the spinners and the
           // browser's own numeric parsing. They are not the same knob and both are wanted.
-          inputMode="decimal"
+          inputMode={integer ? "numeric" : "decimal"}
+          {...(integer ? { step: 1 } : {})}
           {...input}
           type="number"
-          value={value}
+          value={numberText(draft, stored, integer)}
           onBlur={() => {
             // The draft has served its purpose once focus leaves: `1.` should settle to `1`.
             setDraft(undefined);
@@ -186,7 +184,7 @@ function BoundNumberField(props: NumberFieldProps) {
           }}
           onChangeText={(text) => {
             setDraft(text);
-            field.handleChange(parseNumber(text));
+            field.handleChange(parseNumber(text, integer));
           }}
         />
       }
@@ -244,7 +242,7 @@ type SelectFieldProps = FieldProps & {
   options: readonly SelectEntry[];
   placeholder?: string | undefined;
   triggerClassName?: string | undefined;
-  /** A search box above the list, for the long one. `OptionSelect`'s own prop, passed through. */
+  /** A search box above the list, for the long one. `Combobox`'s own prop, passed through. */
   searchable?: boolean | undefined;
   searchPlaceholder?: string | undefined;
   /**
@@ -254,10 +252,21 @@ type SelectFieldProps = FieldProps & {
    * this component exists to end.
    */
   onOpenChange?: ((open: boolean) => void) | undefined;
+  /**
+   * Adds a first row for "nothing", which writes `null`. The field then holds `string | null`,
+   * and reads `null`, `undefined` and `""` as that row.
+   */
+  clearable?: boolean | undefined;
+  /**
+   * What the row for "nothing" says. Read only when `clearable`.
+   *
+   * @defaultValue `"None"`
+   */
+  emptyLabel?: string | undefined;
 };
 
 /**
- * The one that needs `FormField`'s function form, because `OptionSelect` is a `Popover`-shaped control
+ * The one that needs `FormField`'s function form, because `Combobox` is a `Popover`-shaped control
  * whose root renders no DOM: the id and the aria attributes belong on the trigger, and the
  * control is what knows where that is. Every hand-written select field in these apps puts them
  * on the root instead, silently, leaving a trigger with no `aria-invalid` and an error message
@@ -270,21 +279,27 @@ function BoundSelectField({
   searchable,
   searchPlaceholder,
   onOpenChange,
+  clearable = false,
+  emptyLabel = "None",
   ...rest
 }: SelectFieldProps) {
-  const field = useFieldContext<string>();
+  const field = useFieldContext<string | null>();
   const error = useFieldError();
+  const entries = useMemo(
+    () => (clearable ? withEmptyOption(options, emptyLabel) : options),
+    [options, clearable, emptyLabel],
+  );
 
   return (
     <FormField
       {...rest}
       error={error}
       controlSlot={(wired) => (
-        <OptionSelect
+        <Combobox
           {...wired}
-          options={options}
-          value={field.state.value ?? ""}
-          onValueChange={field.handleChange}
+          options={entries}
+          value={clearable ? menuValueOf(field.state.value) : (field.state.value ?? "")}
+          onValueChange={(next) => field.handleChange(clearable ? storedValueOf(next) : next)}
           onBlur={field.handleBlur}
           placeholder={placeholder}
           searchable={searchable}
@@ -294,6 +309,142 @@ function BoundSelectField({
         />
       )}
     />
+  );
+}
+
+/** What a bound combobox wires itself, so a call site does not. */
+type ComboboxWired =
+  | "id"
+  | "value"
+  | "onValueChange"
+  | "onBlur"
+  | "className"
+  | "aria-describedby"
+  | "aria-invalid"
+  | "aria-required";
+
+type SingleComboboxFieldProps = FieldProps &
+  Omit<ComboboxSingleProps, ComboboxWired> & {
+    /** The trigger's class. `className` is the field's, as on every bound field. */
+    triggerClassName?: string | undefined;
+    /**
+     * Adds a first row for "nothing", which writes `null`. The field then holds `string | null`,
+     * and reads `null`, `undefined` and `""` as that row.
+     */
+    clearable?: boolean | undefined;
+    /**
+     * What the row for "nothing" says. Read only when `clearable`.
+     *
+     * @defaultValue `"None"`
+     */
+    emptyLabel?: string | undefined;
+  };
+
+type MultipleComboboxFieldProps = FieldProps &
+  Omit<ComboboxMultipleProps, ComboboxWired> & {
+    /** The trigger's class. `className` is the field's, as on every bound field. */
+    triggerClassName?: string | undefined;
+  };
+
+function BoundSingleComboboxField(props: SingleComboboxFieldProps) {
+  const [
+    fieldProps,
+    { triggerClassName, options, clearable = false, emptyLabel = "None", ...control },
+  ] = splitProps(props);
+  const field = useFieldContext<string | null>();
+  const error = useFieldError();
+  const entries = useMemo(
+    () => (clearable ? withEmptyOption(options, emptyLabel) : options),
+    [options, clearable, emptyLabel],
+  );
+
+  return (
+    <FormField
+      {...fieldProps}
+      error={error}
+      // The function form, for the reason `SelectField` uses it: the id has to land on the trigger.
+      controlSlot={(wired) => (
+        <Combobox
+          {...control}
+          {...wired}
+          options={entries}
+          className={triggerClassName}
+          value={clearable ? menuValueOf(field.state.value) : (field.state.value ?? "")}
+          onValueChange={(next) => {
+            field.handleChange(clearable ? storedValueOf(next) : next);
+            // A popover control has no blur that means "done with this field": focus goes into
+            // the portal and comes back. Choosing is the interaction, so choosing marks it
+            // touched, or a required-and-empty message can never appear before submit.
+            field.handleBlur();
+          }}
+        />
+      )}
+    />
+  );
+}
+
+/**
+ * A `freeText` menu's refusal, put on the field as its error while it stands and taken off after,
+ * so the field turns red and says why as it does for a validator's message. Only its own message
+ * is taken off: a validator's error that replaced it in the meantime stays.
+ */
+function useRefusalError(field: ReturnType<typeof useFieldContext<readonly string[] | null>>) {
+  const shown = useRef<string | undefined>(undefined);
+  return useCallback(
+    (message: string | undefined) => {
+      const standing = field.state.meta.errorMap.onChange;
+      if (message !== undefined) {
+        if (standing === message) {
+          return;
+        }
+        shown.current = message;
+        field.setMeta((prev) => ({
+          ...prev,
+          isTouched: true,
+          errorMap: { ...prev.errorMap, onChange: message },
+        }));
+      } else if (shown.current !== undefined && standing === shown.current) {
+        shown.current = undefined;
+        field.setErrorMap({ onChange: undefined });
+      }
+    },
+    [field],
+  );
+}
+
+function BoundMultipleComboboxField(props: MultipleComboboxFieldProps) {
+  const [fieldProps, { multiple: _multiple, triggerClassName, ...control }] = splitProps(props);
+  const field = useFieldContext<readonly string[] | null>();
+  const error = useFieldError();
+  const onRefusalChange = useRefusalError(field);
+
+  return (
+    <FormField
+      {...fieldProps}
+      error={error}
+      controlSlot={(wired) => (
+        <Combobox
+          {...control}
+          {...(control.freeText === true ? { onRefusalChange } : {})}
+          {...wired}
+          multiple
+          className={triggerClassName}
+          value={field.state.value ?? []}
+          onValueChange={(next) => {
+            field.handleChange(next);
+            field.handleBlur();
+          }}
+        />
+      )}
+    />
+  );
+}
+
+function BoundComboboxField(props: SingleComboboxFieldProps | MultipleComboboxFieldProps) {
+  return props.multiple === true ? (
+    <BoundMultipleComboboxField {...props} />
+  ) : (
+    <BoundSingleComboboxField {...props} />
   );
 }
 
@@ -355,12 +506,16 @@ function BoundSwitchField(props: SwitchFieldProps) {
   );
 }
 
-type SubmitButtonProps = Omit<
-  ComponentProps<typeof Button>,
-  "type" | "loading" | "loadingLabel"
-> & {
+type SubmitButtonProps = ButtonPropsWithout<"type" | "loading" | "loadingLabel"> & {
   /** What it says mid-flight. The label is replaced, not appended to. */
   pendingLabel?: string | undefined;
+  /**
+   * Disabled while every value is still its default, for an edit form whose Save means nothing
+   * until something changes. Read from the store's `isDefaultValue`, not `isDirty`, so a value
+   * typed and typed back disables it again. Off by default: a create form, or one replaying what
+   * is already in the box, is right to submit untouched.
+   */
+  requireChanges?: boolean | undefined;
 };
 
 /**
@@ -372,20 +527,28 @@ type SubmitButtonProps = Omit<
  *
  * `disabled` is a third reason, not a replacement for the two: it is OR-ed in, so a caller can
  * only ever *tighten* the guard. The reasons the store cannot know are real ones — a mutation in
- * flight on the other half of the screen, a settings form that is valid but unchanged — and
- * without a way to say them the whole component gets dropped for a hand-written
- * `<Button type="submit">` that re-derives `canSubmit` and `isSubmitting`, which is the
- * duplication this exists to remove.
+ * flight on the other half of the screen — and without a way to say them the whole component gets
+ * dropped for a hand-written `<Button type="submit">` that re-derives `canSubmit` and
+ * `isSubmitting`, which is the duplication this exists to remove. A form that is valid but
+ * unchanged is a reason the store does know, and `requireChanges` says it.
+ *
+ * Inside a `<form>`, or naming one with `form="…"`, it is a submit control and the form's own
+ * `onSubmit` runs. With no form to submit — a dialog's `footerActionsSlot`, a card's footer —
+ * a `type="submit"` button does nothing at all, so there it calls `form.handleSubmit()` itself,
+ * as the native `SubmitButton` always does.
  */
 export function SubmitButton({
   content = "Save",
   pendingLabel = "Saving…",
   disabled,
+  requireChanges = false,
+  onClick,
   ...props
 }: SubmitButtonProps) {
   const form = useFormContext();
   const canSubmit = useStore(form.store, (state) => state.canSubmit);
   const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
+  const untouched = useStore(form.store, (state) => state.isDefaultValue);
 
   // Ahead of the spread as well as OR-ed, so that neither a caller nor a future prop can put a
   // `disabled={false}` back over the store's answer.
@@ -393,7 +556,14 @@ export function SubmitButton({
     <Button
       type="submit"
       {...props}
-      disabled={disabled || !canSubmit}
+      onClick={(event) => {
+        onClick?.(event);
+        // `button.form` is the form that owns it, by ancestry or by the `form` attribute.
+        if (event.defaultPrevented === false && !event.currentTarget.form) {
+          form.handleSubmit();
+        }
+      }}
+      disabled={disabled || canSubmit === false || (requireChanges && untouched)}
       loading={isSubmitting}
       loadingLabel={pendingLabel}
       content={content}
@@ -430,116 +600,6 @@ export const { useAppForm, withForm } = createFormHook({
   },
   formComponents: { SubmitButton },
 });
-
-/**
- * What a bound field needs off a form, and nothing else — structural on purpose, so these work
- * with a plain `useForm` as well as with `useAppForm`.
- */
-type BindableForm = {
-  state: { values: unknown };
-  // Not `=> ReactNode`: a function component may return a promise, and TanStack types `Field`
-  // that way, so narrowing here rejects every real form.
-  Field: (props: never) => ReactNode | Promise<ReactNode>;
-};
-
-/** The shape of a form's values, recovered from the form itself, so `name` can be checked. */
-type ValuesOf<TForm extends BindableForm> = TForm extends { state: { values: infer TValues } }
-  ? TValues
-  : never;
-
-/**
- * A validator, with its `value` already narrowed to the type of the field being validated.
- *
- * Anything falsy passes. A string is the message; TanStack accepts any error shape, and
- * `messageOf` upstream turns an object with a `message` into one, so a schema issue can be
- * returned whole.
- */
-type Validate<TValue> = (context: {
-  value: TValue;
-  fieldApi: AnyFieldApi;
-  signal: AbortSignal;
-}) => unknown;
-
-/**
- * The validators a field call site actually writes, spelled out rather than imported.
- *
- * TanStack's own `FieldValidators` carries twenty-three type parameters that exist to infer each
- * validator's error type from the one before it. Naming them here would mean naming all of them
- * at every use; what a call site wants is `value`, typed, and this gets that from the form and
- * the field name. Anything beyond these seven belongs on `form.AppField`, which has the real
- * type in full.
- */
-type Validators<TValues, TName extends DeepKeys<TValues>> = {
-  onMount?: Validate<DeepValue<TValues, TName>> | undefined;
-  onChange?: Validate<DeepValue<TValues, TName>> | undefined;
-  onChangeAsync?: Validate<DeepValue<TValues, TName>> | undefined;
-  onBlur?: Validate<DeepValue<TValues, TName>> | undefined;
-  onBlurAsync?: Validate<DeepValue<TValues, TName>> | undefined;
-  onSubmit?: Validate<DeepValue<TValues, TName>> | undefined;
-  onSubmitAsync?: Validate<DeepValue<TValues, TName>> | undefined;
-};
-
-type Listen<TValue> = (context: { value: TValue; fieldApi: AnyFieldApi }) => void;
-
-/**
- * What the field should *do* when it changes, spelled out for the same reason
- * {@link Validators} is.
- *
- * A validator answers whether the value is allowed; a listener acts on it having changed —
- * naming a lane after the kind you picked for it, filling a description from a template,
- * clearing the fields the other transport owned. Both are field-level options, both are handed
- * straight to the field, and neither is a reason to fall back to `form.AppField`: the render
- * prop is for a field that needs the `field` object to *render*, not for one that needs a
- * callback the wrapper forgot to pass on.
- *
- * `onGroupSubmit` is the one omitted — it belongs to TanStack's field groups, which nothing in
- * this registry builds.
- */
-type Listeners<TValues, TName extends DeepKeys<TValues>> = {
-  onMount?: Listen<DeepValue<TValues, TName>> | undefined;
-  onUnmount?: Listen<DeepValue<TValues, TName>> | undefined;
-  onChange?: Listen<DeepValue<TValues, TName>> | undefined;
-  /** How long to wait after the last change before running `onChange`, in milliseconds. */
-  onChangeDebounceMs?: number | undefined;
-  onBlur?: Listen<DeepValue<TValues, TName>> | undefined;
-  /** How long to wait after the last blur before running `onBlur`, in milliseconds. */
-  onBlurDebounceMs?: number | undefined;
-  onSubmit?: Listen<DeepValue<TValues, TName>> | undefined;
-};
-
-/**
- * The names of the fields whose value is a `TValue` — the whole reason `NumberField` is a file
- * and not a `type="number"` prop.
- *
- * Rule 2 says a variant prop is not a component, and it is right: a number input differs from a
- * text input by one attribute. What it cannot do is change what `name` is allowed to be. A
- * `<NumberField name="title">` on a string field is a control that writes `42` into a `string`
- * and a form that submits the wrong type, and no prop can make the compiler notice — the
- * constraint on `name` is fixed before the props are read. So the narrowing has to live in the
- * component's own signature, which means the component has to be its own signature.
- *
- * `NonNullable` so a `string | null` column still counts as a string field; nearly every one of
- * these forms is editing a row that can be null.
- *
- * With the default `unknown` this is every key, which is what the unnarrowed fields want.
- */
-type NamesOfType<TValues, TValue> = {
-  [TName in DeepKeys<TValues>]: NonNullable<DeepValue<TValues, TName>> extends TValue
-    ? TName
-    : never;
-  // Intersected back so the result is provably a `DeepKeys`, which `Validators` requires.
-}[DeepKeys<TValues>] &
-  DeepKeys<TValues>;
-
-type FormBinding<TForm extends BindableForm, TName extends DeepKeys<ValuesOf<TForm>>> = {
-  form: TForm;
-  /** A key of the form's values. Checked: `naem` is a type error, not a field that stays empty. */
-  name: TName;
-  validators?: Validators<ValuesOf<TForm>, TName> | undefined;
-  /** How long to wait before running the async validators, in milliseconds. */
-  asyncDebounceMs?: number | undefined;
-  listeners?: Listeners<ValuesOf<TForm>, TName> | undefined;
-};
 
 /**
  * The control's props, minus the two names the binding needs for itself.
@@ -586,16 +646,7 @@ export function bindToForm<TProps extends object, TValue = unknown>(
     listeners,
     ...rest
   }: ControlPropsOf<TProps> & FormBinding<TForm, TName>) {
-    // The generic `Field` cannot be described to TypeScript without repeating twenty-three type
-    // parameters that are already correct on `form`. The cast is here, once, and `name` above is
-    // what it is protecting.
-    const Subscribe = form.Field as ComponentType<{
-      name: unknown;
-      validators?: unknown | undefined;
-      asyncDebounceMs?: number | undefined;
-      listeners?: unknown | undefined;
-      children: (field: AnyFieldApi) => ReactNode;
-    }>;
+    const Subscribe = fieldOf(form);
 
     return (
       <Subscribe
@@ -606,7 +657,7 @@ export function bindToForm<TProps extends object, TValue = unknown>(
       >
         {(field) => (
           <fieldContext.Provider value={field}>
-            <Bound {...(rest as unknown as TProps)} />
+            <Bound {...(rest as TProps)} />
           </fieldContext.Provider>
         )}
       </Subscribe>
@@ -626,7 +677,7 @@ export function bindToForm<TProps extends object, TValue = unknown>(
  * <InputField form={form} name="title" label="Title" required />
  * ```
  *
- * `type="number"` writes a number back to the store, not a numeric string. `name` is checked
+ * It writes a string whatever its `type`: a number is {@link NumberField}. `name` is checked
  * against the form's values, so a renamed field breaks the build rather than going quiet.
  */
 export const InputField = bindToForm<InputFieldProps, string>(BoundInputField, "InputField");
@@ -649,8 +700,57 @@ export const TextareaField = bindToForm<TextareaFieldProps, string>(
   "TextareaField",
 );
 
-/** A select, as one line. Takes its choices as `options`, not as children. */
-export const SelectField = bindToForm<SelectFieldProps, string>(BoundSelectField, "SelectField");
+/**
+ * Lets `clearable` through only over a field that can hold the `null` it writes. A field typed
+ * `string` would be handed a value its schema never listed, and find out at the server.
+ */
+type ClearableOver<TValues, TName extends DeepKeys<TValues>> =
+  null extends DeepValue<TValues, TName> ? boolean | undefined : false | undefined;
+
+/**
+ * A select, as one line. Takes its choices as `options`, not as children.
+ *
+ * ```tsx
+ * <SelectField form={form} name="owner" label="Owner" options={PEOPLE} clearable emptyLabel="Nobody" />
+ * ```
+ *
+ * `clearable` is a type error unless the field named can hold `null`.
+ */
+export const SelectField = bindToForm<SelectFieldProps, string>(
+  BoundSelectField,
+  "SelectField",
+) as <TForm extends BindableForm, TName extends NamesOfType<ValuesOf<TForm>, string>>(
+  props: Omit<ControlPropsOf<SelectFieldProps>, "clearable"> &
+    FormBinding<TForm, TName> & { clearable?: ClearableOver<ValuesOf<TForm>, TName> },
+) => ReactNode;
+
+/** `ComboboxField`'s two call shapes: `multiple` decides which fields `name` may be. */
+type ComboboxFieldComponent = {
+  <TForm extends BindableForm, TName extends NamesOfType<ValuesOf<TForm>, readonly string[]>>(
+    props: ControlPropsOf<MultipleComboboxFieldProps> & FormBinding<TForm, TName>,
+  ): ReactNode;
+  <TForm extends BindableForm, TName extends NamesOfType<ValuesOf<TForm>, string>>(
+    props: Omit<ControlPropsOf<SingleComboboxFieldProps>, "clearable"> &
+      FormBinding<TForm, TName> & { clearable?: ClearableOver<ValuesOf<TForm>, TName> },
+  ): ReactNode;
+};
+
+/**
+ * A combobox, as one line: `Combobox` with every prop it takes, over a field holding one of the
+ * options' values, or a list of them with `multiple`.
+ *
+ * ```tsx
+ * <ComboboxField form={form} name="model" label="Model" options={models} searchable />
+ * <ComboboxField form={form} name="tags" label="Tags" options={tags} multiple onCreateOption={create} />
+ * ```
+ *
+ * `multiple` over a field that is not a list of strings is a type error, and so is leaving it
+ * off over one that is. `clearable` is checked as on {@link SelectField}.
+ */
+export const ComboboxField = bindToForm<
+  SingleComboboxFieldProps | MultipleComboboxFieldProps,
+  string | readonly string[]
+>(BoundComboboxField, "ComboboxField") as ComboboxFieldComponent;
 
 /** A checkbox and its caption, as one line. Horizontal, because a 16px box is not a row. */
 export const CheckboxField = bindToForm<CheckboxFieldProps, boolean>(
@@ -665,4 +765,4 @@ export type { SelectEntry, SelectOption, SelectSeparatorEntry };
 // Local bindings rather than `export … from`: the shadcn CLI rewrites import declarations on
 // install and leaves re-export declarations alone, so the `from` form would ship a path into
 // `control/` that does not exist in a consumer's tree. See AGENTS.md.
-export { OptionSelect };
+export { Combobox };
