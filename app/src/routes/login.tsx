@@ -1,9 +1,12 @@
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { InputField, useAppForm } from '@/components/app-form';
 import { CenteredLayout } from '@/components/centered-layout';
+import { PairSsoForm } from '@/components/sso/pair-sso-form';
+import { SignInOptions } from '@/components/sso/sign-in-options';
+import { SsoSignIn } from '@/components/sso/sso-sign-in';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
@@ -34,7 +37,10 @@ interface SentLink {
 const THEME_SLOT = <ThemePicker variant="compact" className="w-28" />;
 
 /**
- * The sign-in screen: asks for an email, then says where the link went.
+ * The sign-in screen: asks for an email, then says where the link went. Where the instance has an OIDC provider, its
+ * button comes first, and a sign-in there that failed comes back here with `?error=`. A new instance, with no
+ * accounts and no provider, also offers to pair one, so whoever installs it can set sign-in up before there is an
+ * admin to ask.
  *
  * Someone already signed in is sent on to their journal.
  */
@@ -53,7 +59,13 @@ export function LoginPage() {
 /** The form that asks for a sign-in link. `onSent` is called with the link once the server has taken the request. */
 function RequestLink({ onSent }: { onSent: (sent: SentLink) => void }) {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [requestLink, { error }] = useMutation(SignInMagicLink);
+  const options = useQuery(SignInOptions).data;
+  const [isPairing, setIsPairing] = useState(false);
+  const [paired, setPaired] = useState<string | null>(null);
+  const isLocalNet = options?.authConfig.secureLocalNet === true;
+  const canOfferPairing = options?.ssoSetup.canPair === true && options.ssoSetup.source === 'NONE';
 
   const form = useAppForm({
     defaultValues: { email: '' },
@@ -80,24 +92,53 @@ function RequestLink({ onSent }: { onSent: (sent: SentLink) => void }) {
       title="Sign in to Ephemeris"
       // The card is the whole page here, so its title is the page's heading.
       level={1}
-      description="A journal of one. We will email you a link to sign in."
+      description={
+        isLocalNet
+          ? 'A journal of one. Enter your email to sign in.'
+          : 'A journal of one. We will email you a link to sign in.'
+      }
       contentSlot={
-        <form
-          id={FORM_ID}
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            form.handleSubmit();
-          }}
-        >
-          {error && <Alert variant="destructive" title="We could not send a link" description={error.message} />}
-          <InputField form={form} name="email" label="Email" type="email" autoComplete="email" required />
-        </form>
+        <div className="flex flex-col gap-4">
+          {paired && (
+            <Alert
+              variant="info"
+              title={`Paired with ${paired}`}
+              description="Sign in with it below. The first account to sign in runs this instance."
+            />
+          )}
+          <SsoSignIn provider={options?.authConfig.sso ?? null} error={params.get('error')} />
+          <form
+            id={FORM_ID}
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              form.handleSubmit();
+            }}
+          >
+            {error && <Alert variant="destructive" title="We could not send a link" description={error.message} />}
+            <InputField form={form} name="email" label="Email" type="email" autoComplete="email" required />
+          </form>
+          {canOfferPairing &&
+            (isPairing ? (
+              <PairSsoForm
+                onPaired={(name) => {
+                  setPaired(name);
+                  setIsPairing(false);
+                }}
+              />
+            ) : (
+              <Button variant="link" content="Set up sign-in with a provider" onClick={() => setIsPairing(true)} />
+            ))}
+        </div>
       }
       footerSlot={THEME_SLOT}
       footerActionsSlot={
         <form.AppForm>
-          <form.SubmitButton form={FORM_ID} content="Send sign-in link" pendingLabel="Sending…" />
+          <form.SubmitButton
+            form={FORM_ID}
+            content={isLocalNet ? 'Sign in' : 'Send sign-in link'}
+            pendingLabel={isLocalNet ? 'Signing in…' : 'Sending…'}
+          />
         </form.AppForm>
       }
     />
