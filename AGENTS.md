@@ -41,7 +41,7 @@ ephemeris/
 │       │   ├── entries/     # recent-days, entry-form (the editor and its two documents)
 │       │   ├── mood/        # mood-scale, mood-field (the scale bound to a form)
 │       │   ├── sso/         # sign-in-options (the login page's first query), sso-sign-in, pair-sso-form
-│       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, QueryState, app-form, …)
+│       │   └── *.tsx        # cubeui shells (SidebarLayout, PageLayout, CardLayout, LoadState, app-form, …)
 │       ├── routes/          # login, verify (a magic link lands), sso (an OIDC sign-in lands), journal (the one page)
 │       ├── lib/             # apollo, auth, query, date, mood, cn()
 │       ├── testing/         # story-mocks: the mocked server answers stories share
@@ -267,7 +267,7 @@ than erroring, so a hand-typed or stale URL is never a dead end. This is what
 makes a row in "Recent" a plain `<Link>`.
 
 **An empty state means the server said "none", never that we failed to ask.**
-`QueryState` takes the failure rung before the empty one, and `queryLike()` in
+`LoadState` takes the failure rung before the empty one, and `queryLike()` in
 `app/src/lib/query.ts` reports pending and error only while there is nothing on
 screen.
 
@@ -362,7 +362,7 @@ the sidebar too — which is why the "N of the last 30 days written" count is bo
 the bar's `status` and the heading action of the sidebar's Recent section.
 
 **Sidebar and bar rows are buttons that cubeui renders, so routing is handed in.**
-`app-shell/sidebar-link.tsx` wraps `SidebarNavItem` and `BarNavItem` with `href`, a
+`app-shell/sidebar-link.tsx` wraps `SidebarItem` and `AppBarItem` with `href`, a
 `useLinkClickHandler` and `active` from the location: a real `<a>` that
 middle-clicks and opens in a tab, without a full page load on a plain click.
 
@@ -382,7 +382,7 @@ for the bar) or it matches twice.
 cubeui registries and are kept as published, so `shadcn add` can update them.
 `biome.json` exempts them from two lint rules rather than letting anyone edit
 them into compliance. The cubeui shells one level up (`page-layout.tsx`,
-`query-state.tsx`, …) are the same deal. Neither takes children: regions are
+`load-state.tsx`, …) are the same deal. Neither takes children: regions are
 `*Slot` props that take elements (`contentSlot`, `actionSlot`, `footerSlot`), and
 words are plain props (`title`, `description`, `label`, a `Button`'s `content`).
 `npx biome check --write` after a `shadcn add` is formatting, not editing.

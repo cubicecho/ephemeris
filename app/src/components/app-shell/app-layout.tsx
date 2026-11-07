@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { graphql } from '@/__generated__';
 import { BarLink, SidebarLink } from '@/components/app-shell/sidebar-link';
 import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/entries/recent-days';
-import { Sidebar, SidebarNavItem, SidebarSection } from '@/components/sidebar';
+import { Sidebar, SidebarItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
 import { ThemePicker } from '@/components/ui/theme-picker';
@@ -92,7 +92,7 @@ export function AppLayout({ contentSlot }: AppLayoutProps) {
           ]}
           footerSlot={[
             <ThemePicker key="theme" variant="compact" />,
-            <SidebarNavItem key="sign-out" label="Sign out" iconSlot={<LogOut />} onClick={signOut} />,
+            <SidebarItem key="sign-out" label="Sign out" iconSlot={<LogOut />} onClick={signOut} />,
           ]}
         />
       }
