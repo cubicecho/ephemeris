@@ -3,8 +3,8 @@ import { Link, Navigate, useParams } from 'react-router';
 import { CardLayout } from '@/components/card-layout';
 import { EntryForm, JournalDay } from '@/components/entries/entry-form';
 import { RECENT_LIMIT, RecentDaysList } from '@/components/entries/recent-days';
+import { LoadError } from '@/components/load-state';
 import { PageLayout } from '@/components/page-layout';
-import { QueryError } from '@/components/query-state';
 import { Section } from '@/components/section';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from '@/components/ui/icons';
@@ -41,7 +41,7 @@ function DayEntry({ date }: { date: string }) {
 
   if (hasNothingToShow && result.error !== undefined) {
     // A day that failed to load is not an unwritten one: an editor here would save over it.
-    return <QueryError error={result.error} onRetry={() => result.refetch()} what="this day's entry" />;
+    return <LoadError error={result.error} onRetry={() => result.refetch()} what="this day's entry" />;
   }
   if (hasNothingToShow) {
     return <CardLayout title="Entry" level={2} loading />;

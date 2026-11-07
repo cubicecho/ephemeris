@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { graphql } from '@/__generated__';
 import { InputField, useAppForm } from '@/components/app-form';
-import { CenteredLayout } from '@/components/centered-layout';
+import { CenteredCardLayout } from '@/components/centered-card-layout';
 import { PairSsoForm } from '@/components/sso/pair-sso-form';
 import { SignInOptions } from '@/components/sso/sign-in-options';
 import { SsoSignIn } from '@/components/sso/sso-sign-in';
@@ -87,7 +87,7 @@ function RequestLink({ onSent }: { onSent: (sent: SentLink) => void }) {
   });
 
   return (
-    <CenteredLayout
+    <CenteredCardLayout
       iconSlot={<BookOpen />}
       title="Sign in to Ephemeris"
       // The card is the whole page here, so its title is the page's heading.
@@ -152,7 +152,7 @@ function LinkSent({ sent, onStartOver }: { sent: SentLink; onStartOver: () => vo
   const localLink = sent.magicLink ? `/auth/verify${new URL(sent.magicLink).search}` : null;
 
   return (
-    <CenteredLayout
+    <CenteredCardLayout
       iconSlot={<BookOpen />}
       title="Sign in to Ephemeris"
       level={1}

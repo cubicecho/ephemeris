@@ -5,8 +5,8 @@ import { SidebarLink } from '@/components/app-shell/sidebar-link';
 import { EmptyState } from '@/components/empty-state';
 import { List } from '@/components/list';
 import { ListItem } from '@/components/list-item';
+import { LoadState } from '@/components/load-state';
 import { MoodDot } from '@/components/mood/mood-scale';
-import { QueryState } from '@/components/query-state';
 import { SidebarSection } from '@/components/sidebar';
 import { BookOpen } from '@/lib/app-icons';
 import { formatDay, formatFullDate } from '@/lib/date';
@@ -72,7 +72,7 @@ export function RecentDaysSection({ today }: { today: string }) {
         ) : null
       }
       status={
-        <QueryState
+        <LoadState
           compact
           className="px-2"
           query={queryLike(result)}
@@ -111,7 +111,7 @@ export function RecentDaysList({ className }: { className?: string }) {
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <QueryState
+      <LoadState
         query={queryLike(result)}
         what="your entries"
         count={entries.length}
