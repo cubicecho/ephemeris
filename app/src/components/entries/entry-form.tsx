@@ -143,8 +143,8 @@ export function EntryForm({ date, entry }: EntryFormProps) {
             {(isUnchanged) => (
               <form.SubmitButton
                 form={FORM_ID}
-                variant="positive"
-                content={entry ? 'Save changes' : 'Save entry'}
+                isEdit={entry !== null}
+                createLabel="Save entry"
                 disabled={isUnchanged}
               />
             )}

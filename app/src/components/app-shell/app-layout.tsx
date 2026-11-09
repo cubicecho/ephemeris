@@ -6,8 +6,9 @@ import { RECENT_LIMIT, RecentDaysSection, useRecentEntries } from '@/components/
 import { Sidebar, SidebarItem, SidebarSection } from '@/components/sidebar';
 import { SidebarLayout } from '@/components/split-layout';
 import { Button } from '@/components/ui/button';
+import { LogOut } from '@/components/ui/icons';
 import { ThemePicker } from '@/components/ui/theme-picker';
-import { BookOpen, CalendarDays, LogOut } from '@/lib/app-icons';
+import { BookOpen, CalendarDays } from '@/lib/app-icons';
 import { clearToken } from '@/lib/auth';
 import { todayIso } from '@/lib/date';
 import type { SlotNode } from '@/lib/utils';
