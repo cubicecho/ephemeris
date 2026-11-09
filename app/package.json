@@ -21,7 +21,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
     "graphql": "^16.13.2",
-    "lucide-react": "^1.59.0",
+    "lucide-react": "^1.70.0",
     "radix-ui": "^1.8.1",
     "react": "^19.2.8",
     "react-day-picker": "^10.0.2",
